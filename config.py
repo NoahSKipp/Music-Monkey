@@ -1,3 +1,9 @@
+# ========================================= #
+# Author: Noah S. Kipp                      #
+# Collaborator: Samuel Jaden Garcia Munoz   #
+# Created on: 21.04.2024                    #
+# ========================================= #
+
 # Discord Bot Token
 TOKEN = 'MTIzNzc2OTE0MTkxNDY5Nzc0OQ.GRXWxx.KREMetj6fWNc8JzxJgrppfGhqw7L23GNj8plmU'
 
