@@ -9,43 +9,8 @@ MYSQL_CONFIG = {
     'autocommit': True
 }
 
-# async def setup_database():
-#     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
-#         async with conn.cursor() as cur:
-#             await cur.execute('''
-#             CREATE TABLE IF NOT EXISTS guild_settings (
-#                 guild_id BIGINT PRIMARY KEY,
-#                 dj_only_commands BOOLEAN NOT NULL DEFAULT 0,
-#                 dj_role_id BIGINT
-#             );
-#             CREATE TABLE IF NOT EXISTS song_plays (
-#                 guild_id BIGINT NOT NULL,
-#                 user_id BIGINT NOT NULL,
-#                 plays_count INT DEFAULT 1,
-#                 PRIMARY KEY (guild_id, user_id)
-#             );
-#             CREATE TABLE IF NOT EXISTS artist_counts (
-#                 user_id BIGINT NOT NULL,
-#                 artist VARCHAR(255) NOT NULL,
-#                 count INT DEFAULT 1,
-#                 PRIMARY KEY (user_id, artist)
-#             );
-#             CREATE TABLE IF NOT EXISTS song_counts (
-#                 user_id BIGINT NOT NULL,
-#                 song VARCHAR(255) NOT NULL,
-#                 count INT DEFAULT 1,
-#                 PRIMARY KEY (user_id, song)
-#             );
-#             CREATE TABLE IF NOT EXISTS user_music_stats (
-#                 user_id BIGINT PRIMARY KEY,
-#                 total_songs_played INT DEFAULT 0,
-#                 total_duration_millis BIGINT DEFAULT 0,
-#                 xp INT DEFAULT 0,
-#                 level INT DEFAULT 1
-#             );
-#             ''')
-#             await conn.commit()
 
+# Creates tables for the MySQL DB.
 async def setup_database():
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
         async with conn.cursor() as cur:
@@ -69,6 +34,8 @@ async def setup_database():
             );
             ''')
             await conn.commit()
+
+
 async def fetch_all_guild_settings():
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
         async with conn.cursor(aiomysql.DictCursor) as cur:
