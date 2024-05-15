@@ -4,7 +4,6 @@
 # Created on: 08.05.2024                    #
 # ========================================= #
 
-
 import discord
 from discord import app_commands, ui, ButtonStyle
 from discord.ext import commands
@@ -119,7 +118,8 @@ class HelpCog(commands.Cog):
 
     def get_support_info(self):
         return ("**Support:**\n"
-                "Need help? Visit our **[Support Server](https://discord.gg/kyamXgVU68)** for more detailed support from the developer and the community.")
+                "Need help? Visit our **[Support Server](https://discord.gg/kyamXgVU68)** for more detailed support "
+                "from the developer and the community.")
 
     def create_support_button(self):
         return ui.Button(label="Support", url="https://discord.gg/kyamXgVU68", style=ButtonStyle.link)

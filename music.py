@@ -1,12 +1,10 @@
-# music.py
 import discord
 from discord import app_commands, Interaction, Embed, ButtonStyle, ui
 from discord.ext import commands, tasks
 import wavelink
-import config
 import logging
 import database
-from datetime import datetime,timedelta
+from datetime import datetime, timedelta
 
 
 class SelectRoleView(discord.ui.View):
@@ -14,6 +12,7 @@ class SelectRoleView(discord.ui.View):
         super().__init__()
         self.user_id = user_id
         self.add_item(RoleSelect(options))
+
 
 class QueuePaginationView(ui.View):
     def __init__(self, cog, interaction, current_page, total_pages):
@@ -68,6 +67,7 @@ def format_duration(ms):
         return f"{hours}:{minutes:02}:{seconds:02}"
     else:
         return f"{minutes}:{seconds:02}"
+
 
 class RoleSelect(discord.ui.Select):
     def __init__(self, options):
@@ -160,7 +160,6 @@ class MusicCog(commands.Cog):
             if channel:
                 await self.send_inactivity_message(channel)
         await self.disconnect_and_cleanup(player)
-
 
     async def send_inactivity_message(self, channel: discord.TextChannel):
         embed = discord.Embed(
@@ -378,7 +377,7 @@ class MusicCog(commands.Cog):
 
         # Check if the reminder should be sent for this guild
         if (guild_id in self.last_vote_reminder_time_per_guild and
-            (current_time - self.last_vote_reminder_time_per_guild[guild_id]) > timedelta(hours=12)):
+                (current_time - self.last_vote_reminder_time_per_guild[guild_id]) > timedelta(hours=12)):
             await self.send_vote_reminder(interaction)
             self.last_vote_reminder_time_per_guild[guild_id] = current_time
         elif guild_id not in self.last_vote_reminder_time_per_guild:
@@ -435,7 +434,8 @@ class MusicCog(commands.Cog):
     async def send_vote_reminder(self, interaction):
         embed = Embed(
             title="Support Us by Voting!",
-            description="🌟 Your votes help keep the bot free and continuously improving. Please take a moment to support us!",
+            description="🌟 Your votes help keep the bot free and continuously improving. Please take a moment to "
+                        "support us!",
             color=0x00ff00
         )
         embed.add_field(name="Vote Here", value="[Vote on Top.gg](https://top.gg/bot/1228071177239531620/vote)")
@@ -506,7 +506,7 @@ class MusicCog(commands.Cog):
         player = interaction.guild.voice_client
         await player.stop()
         player.queue.clear()
-        await player.disconnect()
+        await player.disconnect(force=False)
         await interaction.response.send_message('Stopped the music and cleared the queue.', ephemeral=False)
 
         # Delete the now playing message
@@ -653,7 +653,6 @@ class MusicCog(commands.Cog):
         mode_description = "normal (no looping)" if new_mode == wavelink.QueueMode.normal else "looping current track"
         await interaction.response.send_message(f"Queue mode set to {mode_description}.", ephemeral=False)
 
-
     @app_commands.command(name='jump', description='Jump to a specific time in the current track')
     @app_commands.describe(time='Time to jump to in the format mm:ss')
     async def jump(self, interaction: discord.Interaction, time: str):
@@ -678,6 +677,7 @@ class MusicCog(commands.Cog):
                                                     ephemeral=True)
         else:
             await interaction.response.send_message("There is no active player or track playing.", ephemeral=True)
+
 
 class MusicButtons(ui.View):
     def __init__(self, player, cog):
