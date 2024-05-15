@@ -112,7 +112,8 @@ class HelpCog(commands.Cog):
 
     def get_support_info(self):
         return ("**Support:**\n"
-                "Need help? Visit our **[Support Server](https://discord.gg/kyamXgVU68)** for more detailed support from the developer and the community.")
+                "Need help? Visit our **[Support Server](https://discord.gg/kyamXgVU68)** for more detailed support "
+                "from the developer and the community.")
 
     def create_support_button(self):
         return ui.Button(label="Support", url="https://discord.gg/kyamXgVU68", style=ButtonStyle.link)
