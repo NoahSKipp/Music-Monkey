@@ -16,133 +16,168 @@ async def setup_database():
         async with conn.cursor() as cur:
             await cur.execute('''
             CREATE TABLE IF NOT EXISTS guilds (
-                guild_id BIGINT PRIMARY KEY NOT NULL,
+                guild_id BIGINT NOT NULL,
                 dj_only_enabled BOOLEAN DEFAULT 0,
-                dj_role_id BIGINT
+                dj_role_id BIGINT,
+                PRIMARY KEY (guild_id)
             );
             CREATE TABLE IF NOT EXISTS songs (
-                song_id BIGINT PRIMARY KEY NOT NULL,
+                song_id BIGINT NOT NULL,
                 name VARCHAR(255) NOT NULL,
                 artist VARCHAR(255) NOT NULL,
-                length INT(255) NOT NULL
+                length INT NOT NULL,
+                PRIMARY KEY (song_id)
+            );
+            CREATE TABLE IF NOT EXISTS users (
+                user_id BIGINT NOT NULL,
+                guild_id BIGINT NOT NULL,
+                PRIMARY KEY (user_id, guild_id),
+                FOREIGN KEY (guild_id) REFERENCES guilds(guild_id)
             );
             CREATE TABLE IF NOT EXISTS plays (
-                user_id BIGINT PRIMARY KEY NOT NULL,
-                song_id BIGINT FOREIGN KEY NOT NULL,
-                guild_id BIGINT FOREIGN KEY NOT NULL,
-                count INT
+                user_id BIGINT NOT NULL,
+                guild_id BIGINT NOT NULL,
+                song_id BIGINT NOT NULL,
+                count INT,
+                PRIMARY KEY (user_id, guild_id, song_id),
+                FOREIGN KEY (user_id, guild_id) REFERENCES users(user_id, guild_id),
+                FOREIGN KEY (song_id) REFERENCES songs(song_id)
+            );
+            CREATE TABLE IF NOT EXISTS wonderTrades (
+                user_id BIGINT NOT NULL,
+                song_id BIGINT NOT NULL,
+                note VARCHAR(60),
+                PRIMARY KEY (user_id, song_id),
+                FOREIGN KEY (user_id) REFERENCES users(user_id),
+                FOREIGN KEY (song_id) REFERENCES songs(song_id)
             );
             ''')
             await conn.commit()
 
 
-async def fetch_all_guild_settings():
+# Returns every entry in the guilds table.
+# Sam's Note: I think this isn't actually being used for anything.
+async def fetch_all_guilds():
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
         async with conn.cursor(aiomysql.DictCursor) as cur:
-            await cur.execute("SELECT guild_id, dj_only_commands, dj_role_id FROM guild_settings")
+            await cur.execute("SELECT guild_id, dj_only_enabled, dj_role_id FROM guilds")
             rows = await cur.fetchall()
-            return {row['guild_id']: {'dj_only_commands': bool(row['dj_only_commands']), 'dj_role_id': row['dj_role_id']} for row in rows}
+            return {
+                row['guild_id']: {'dj_only_enabled': bool(row['dj_only_enabled']), 'dj_role_id': row['dj_role_id']}
+                for row in rows}
 
-async def get_dj_only_commands(guild_id):
+
+# Returns the dj_only_enabled attribute of a given guild.
+async def get_dj_only_enabled(guild_id):
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
         async with conn.cursor() as cur:
-            await cur.execute('SELECT dj_only_commands FROM guild_settings WHERE guild_id = %s', (guild_id,))
+            await cur.execute('SELECT dj_only_enabled FROM guilds WHERE guild_id = %s', guild_id)
             result = await cur.fetchone()
-            if result is None:
-                await cur.execute('INSERT INTO guild_settings (guild_id, dj_only_commands) VALUES (%s, %s)', (guild_id, False))
-                await conn.commit()
-                return False
             return bool(result[0])
 
-async def set_dj_only_commands(guild_id, dj_only):
+
+# Sets the dj_only_enabled attribute of a given guild.
+async def set_dj_only_enabled(guild_id, dj_only):
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
         async with conn.cursor() as cur:
-            await cur.execute('REPLACE INTO guild_settings (guild_id, dj_only_commands) VALUES (%s, %s)', (guild_id, dj_only))
+            await cur.execute('REPLACE INTO guilds (guild_id, dj_only_enabled) VALUES (%s, %s)',
+                              (guild_id, dj_only))
             await conn.commit()
 
-async def set_dj_role(guild_id, role_id):
-    async with aiomysql.connect(**MYSQL_CONFIG) as conn:
-        async with conn.cursor() as cur:
-            await cur.execute('REPLACE INTO guild_settings (guild_id, dj_role_id) VALUES (%s, %s)', (guild_id, role_id))
-            await conn.commit()
 
+# Gets the DJ role of a given guild.
 async def get_dj_role(guild_id):
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
         async with conn.cursor() as cur:
-            await cur.execute('SELECT dj_role_id FROM guild_settings WHERE guild_id = %s', (guild_id,))
+            await cur.execute('SELECT dj_role_id FROM guilds WHERE guild_id = %s', (guild_id,))
             result = await cur.fetchone()
             return result[0] if result else None
 
-async def increment_song_play(guild_id, user_id):
+
+# Sets the given role as the DJ role of a given guild.
+async def set_dj_role(guild_id, role_id):
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
         async with conn.cursor() as cur:
-            await cur.execute('SELECT plays_count FROM song_plays WHERE guild_id = %s AND user_id = %s', (guild_id, user_id))
-            result = await cur.fetchone()
-            if result:
-                new_count = result[0] + 1
-                await cur.execute('UPDATE song_plays SET plays_count = %s WHERE guild_id = %s AND user_id = %s', (new_count, guild_id, user_id))
-            else:
-                await cur.execute('INSERT INTO song_plays (guild_id, user_id, plays_count) VALUES (%s, %s, 1)', (guild_id, user_id))
+            await cur.execute('REPLACE INTO guilds (guild_id, dj_role_id) VALUES (%s, %s)', (guild_id, role_id))
             await conn.commit()
 
+
+# Tries to enter a given song into the songs table. If the song already exists, nothing happens.
+async def enter_song(song_id, name, artist, length):
+    async with aiomysql.connect(**MYSQL_CONFIG) as conn:
+        async with conn.cursor() as cur:
+            await cur.execute('SELECT song_id FROM songs WHERE song_id = %s', song_id)
+            result = await cur.fetchone()
+            if not result:
+                await cur.execute('INSERT INTO songs (song_id, name, artist, length) VALUES (%s, %s, %s, %s)',
+                                  (song_id, name, artist, length))
+                await conn.commit()
+
+
+# Increments the play count for the given song, for the given user, in the given guild.
+async def increment_plays(user_id, song_id, guild_id):
+    async with aiomysql.connect(**MYSQL_CONFIG) as conn:
+        async with conn.cursor() as cur:
+            # Search for an entry for the given song, user and guild.
+            await cur.execute('SELECT count FROM plays WHERE user_id = %s AND song_id = %s and guild_id = %s',
+                              (user_id, song_id, guild_id))
+            result = await cur.fetchone()
+            # If an entry is found, increment the play count by one.
+            if result:
+                new_count = result[0] + 1
+                await cur.execute('UPDATE plays SET count = %s WHERE user_id = %s AND song_id = %s and guild_id = %s',
+                                  (new_count, user_id, song_id, guild_id))
+            # Otherwise, create an entry in the table for the given song, user and guild.
+            else:
+                await cur.execute('INSERT INTO plays (user_id, song_id, guild_id, count) VALUES (%s, %s, %s, 1)',
+                                  (user_id, song_id, guild_id))
+            await conn.commit()
+
+
+# Returns the total play counts for each user of the given guild, in said guild.
+# In other words, only count of songs played in the given guild.
 async def get_leaderboard(guild_id):
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
         async with conn.cursor() as cur:
-            await cur.execute('SELECT user_id, plays_count FROM song_plays WHERE guild_id = %s ORDER BY plays_count DESC', (guild_id,))
+            await cur.execute('SELECT user_id, SUM(count) AS total_count FROM plays WHERE guild_id = %s GROUP BY '
+                              'user_id ORDER BY total_count DESC;', guild_id)
             rows = await cur.fetchall()
             return rows
 
-async def update_music_stats(user_id, artist, title, duration):
+
+# Returns the top stats for a given user.
+# Total amount of songs played, total playtime of all songs played, top played artist and top played song.
+async def get_user_stats(user_id):
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
         async with conn.cursor() as cur:
-            await cur.execute('''
-                INSERT INTO user_music_stats (user_id, total_songs_played, total_duration_millis)
-                VALUES (%s, 1, %s)
-                ON DUPLICATE KEY UPDATE
-                    total_songs_played = total_songs_played + 1,
-                    total_duration_millis = total_duration_millis + %s
-            ''', (user_id, duration, duration))
+            await cur.execute('SELECT SUM(count) AS total_count FROM plays WHERE user_id = %s', guild_id)
+            total_songs = cur.fetchone()
+            if not total_songs:
+                total_songs = 0
 
-            await cur.execute('''
-                INSERT INTO artist_counts (user_id, artist, count)
-                VALUES (%s, %s, 1)
-                ON DUPLICATE KEY UPDATE
-                    count = count + 1
-            ''', (user_id, artist))
+            await cur.execute('SELECT SUM(songs.length * plays.count) AS total_played_length FROM plays JOIN songs ON '
+                              'plays.song_id = songs.song_id WHERE p.user_id = %s;', user_id)
+            total_playtime = cur.fetchone()
+            if not total_playtime:
+                total_playtime = 0
+            total_playtime /= 3600000
 
-            await cur.execute('''
-                INSERT INTO song_counts (user_id, song, count)
-                VALUES (%s, %s, 1)
-                ON DUPLICATE KEY UPDATE
-                    count = count + 1
-            ''', (user_id, title))
+            await cur.execute('SELECT songs.artist, SUM(plays.count) AS total_artist_plays FROM plays JOIN songs ON '
+                              'plays.song_id = songs.song_id WHERE plays.user_id = %s GROUP BY songs.artist ORDER BY '
+                              'total_artist_plays DESC LIMIT 1;')
+            top_artist = cur.fetchone()
+            if not top_artist:
+                top_artist = "None"
 
-            await conn.commit()
+            await cur.execute('SELECT songs.name, plays.count FROM plays JOIN songs ON plays.song_id = songs.song_id '
+                              'WHERE plays.user_id = 1 ORDER BY plays.count DESC LIMIT 1;')
+            top_song = cur.fetchone()
+            if not top_song:
+                top_song = "None"
 
-async def fetch_music_profile(user_id):
-    async with aiomysql.connect(**MYSQL_CONFIG) as conn:
-        async with conn.cursor() as cur:
-            await cur.execute('''
-                SELECT total_songs_played, total_duration_millis FROM user_music_stats WHERE user_id = %s
-            ''', (user_id,))
-            stats = await cur.fetchone()
-            if not stats:
-                return None
-
-            await cur.execute('''
-                SELECT artist FROM artist_counts WHERE user_id = %s ORDER BY count DESC LIMIT 1
-            ''', (user_id,))
-            top_artist = await cur.fetchone()
-
-            await cur.execute('''
-                SELECT song FROM song_counts WHERE user_id = %s ORDER BY count DESC LIMIT 1
-            ''', (user_id,))
-            top_song = await cur.fetchone()
-
-            total_hours_played = stats[1] / 3600000  # Convert milliseconds to hours
             return {
-                'top_artist': top_artist[0] if top_artist else 'No data',
-                'top_song': top_song[0] if top_song else 'No data',
-                'total_songs_played': stats[0],
-                'total_hours_played': total_hours_played
+                'top_artist': top_artist,
+                'top_song': top_song,
+                'total_songs_played': total_songs,
+                'total_hours_played': total_playtime
             }

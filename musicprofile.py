@@ -23,7 +23,7 @@ class MusicProfile(commands.Cog):
             user = interaction.user
 
         user_id = user.id
-        profile = await database.fetch_music_profile(user_id)
+        profile = await database.get_user_stats(user_id)
         if profile:
             embed = discord.Embed(title=f"🎶 {user.display_name}'s Music Profile 🎶", color=discord.Color.random())
             embed.set_thumbnail(url=user.display_avatar.url)
