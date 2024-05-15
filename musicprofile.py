@@ -1,3 +1,9 @@
+# ========================================= #
+# Author: Noah S. Kipp                      #
+# Collaborator: Samuel Jaden Garcia Munoz   #
+# Created on: 07.05.2024                    #
+# ========================================= #
+
 import discord
 from discord import app_commands
 from discord.ext import commands
