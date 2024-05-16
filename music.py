@@ -134,7 +134,7 @@ class MusicCog(commands.Cog):
         logging.debug(f'Interaction check for {interaction.user} in guild {interaction.guild_id}')
 
         # Retrieve the DJ-only mode status and DJ role ID from the database
-        dj_only = await database.get_dj_only_commands(interaction.guild_id)
+        dj_only = await database.get_dj_only_enabled(interaction.guild_id)
         dj_role_id = await database.get_dj_role(interaction.guild_id)
 
         # If DJ-only mode is not enabled, allow all interactions
@@ -346,7 +346,7 @@ class MusicCog(commands.Cog):
     @commands.has_permissions(manage_roles=True)
     async def toggle_dj_mode(self, interaction: discord.Interaction):
         guild_id = interaction.guild_id
-        current_state = await database.get_dj_only_commands(guild_id) or False
+        current_state = await database.get_dj_only_enabled(guild_id) or False
         new_state = not current_state
         await database.set_dj_only_commands(guild_id, new_state)
 
@@ -431,7 +431,7 @@ class MusicCog(commands.Cog):
                 await interaction.followup.send(added_tracks_info, ephemeral=False)
 
             # Increment the play count for the user in the database
-            await database.increment_song_play(interaction.guild_id, interaction.user.id)
+            await database.increment_plays(interaction.guild_id, interaction.user.id)
 
         except Exception as e:
             logging.error(f"Error processing the play command: {e}")
@@ -695,7 +695,7 @@ class MusicButtons(ui.View):
         logging.debug(f'Interaction check for {interaction.user} in guild {interaction.guild_id}')
 
         # Retrieve the DJ-only mode status and DJ role ID from the database
-        dj_only = await database.get_dj_only_commands(interaction.guild_id)
+        dj_only = await database.get_dj_only_enabled(interaction.guild_id)
         dj_role_id = await database.get_dj_role(interaction.guild_id)
 
         # If DJ-only mode is not enabled, allow all interactions
