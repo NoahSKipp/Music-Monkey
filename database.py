@@ -1,3 +1,9 @@
+# ========================================= #
+# Author: Noah S. Kipp                      #
+# Collaborator: Samuel Jaden Garcia Munoz   #
+# Created on: 25.04.2024                    #
+# ========================================= #
+
 import aiomysql
 
 MYSQL_CONFIG = {

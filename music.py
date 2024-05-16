@@ -1,3 +1,9 @@
+# ========================================= #
+# Author: Noah S. Kipp                      #
+# Collaborator: Samuel Jaden Garcia Munoz   #
+# Created on: 21.04.2024                    #
+# ========================================= #
+
 import discord
 from discord import app_commands, Interaction, Embed, ButtonStyle, ui
 from discord.ext import commands, tasks
