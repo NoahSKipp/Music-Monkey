@@ -8,6 +8,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 import database
+import wavelink
 
 class MusicProfile(commands.Cog):
     def __init__(self, bot):
@@ -15,12 +16,13 @@ class MusicProfile(commands.Cog):
 
     @commands.Cog.listener()
     async def on_wavelink_track_start(self, payload):
-        track = payload.track
+        track = wavelink.Playable
         requester_id = getattr(track.extras, "requester_id", None)
-        duration_millis = track.length
+        track_id = wavelink.Playable.identifier
+        guild_id = payload.player.guild_id
 
         if requester_id:
-            await database.update_music_stats(requester_id, track.author, track.title, duration_millis)
+            await database.increment_plays(requester_id, track_id, guild_id)
 
     @app_commands.command(name='profile', description='Displays a music profile for you or another user')
     @app_commands.describe(user="The user whose music profile you want to view")

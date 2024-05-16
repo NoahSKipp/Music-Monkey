@@ -28,7 +28,7 @@ async def setup_database():
                 PRIMARY KEY (guild_id)
             );
             CREATE TABLE IF NOT EXISTS songs (
-                song_id BIGINT NOT NULL,
+                song_id VARCHAR(255) NOT NULL,
                 name VARCHAR(255) NOT NULL,
                 artist VARCHAR(255) NOT NULL,
                 length INT NOT NULL,
@@ -43,7 +43,7 @@ async def setup_database():
             CREATE TABLE IF NOT EXISTS plays (
                 user_id BIGINT NOT NULL,
                 guild_id BIGINT NOT NULL,
-                song_id BIGINT NOT NULL,
+                song_id VARCHAR(255) NOT NULL,
                 count INT,
                 PRIMARY KEY (user_id, guild_id, song_id),
                 FOREIGN KEY (user_id, guild_id) REFERENCES users(user_id, guild_id),
@@ -51,7 +51,7 @@ async def setup_database():
             );
             CREATE TABLE IF NOT EXISTS wonderTrades (
                 user_id BIGINT NOT NULL,
-                song_id BIGINT NOT NULL,
+                song_id VARCHAR(255) NOT NULL,
                 note VARCHAR(60),
                 PRIMARY KEY (user_id, song_id),
                 FOREIGN KEY (user_id) REFERENCES users(user_id),
@@ -86,8 +86,7 @@ async def get_dj_only_enabled(guild_id):
 async def set_dj_only_enabled(guild_id, dj_only):
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
         async with conn.cursor() as cur:
-            await cur.execute('REPLACE INTO guilds (guild_id, dj_only_enabled) VALUES (%s, %s)',
-                              (guild_id, dj_only))
+            await cur.execute('UPDATE guilds SET dj_only_enabled = %s WHERE guild_id = %s', (dj_only, guild_id))
             await conn.commit()
 
 
@@ -95,7 +94,7 @@ async def set_dj_only_enabled(guild_id, dj_only):
 async def get_dj_role(guild_id):
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
         async with conn.cursor() as cur:
-            await cur.execute('SELECT dj_role_id FROM guilds WHERE guild_id = %s', (guild_id,))
+            await cur.execute('SELECT dj_role_id FROM guilds WHERE guild_id = %s', guild_id)
             result = await cur.fetchone()
             return result[0] if result else None
 
@@ -104,8 +103,31 @@ async def get_dj_role(guild_id):
 async def set_dj_role(guild_id, role_id):
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
         async with conn.cursor() as cur:
-            await cur.execute('REPLACE INTO guilds (guild_id, dj_role_id) VALUES (%s, %s)', (guild_id, role_id))
+            await cur.execute('UPDATE guilds SET dj_role_id = %s WHERE guild_id = %s', (role_id, guild_id))
             await conn.commit()
+
+
+# Checks if a given guild_id is in the guilds table.
+async def enter_guild(guild_id):
+    async with aiomysql.connect(**MYSQL_CONFIG) as conn:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute("SELECT guild_id FROM guilds WHERE guild_id = %s", guild_id)
+            guild = await cur.fetchall()
+            if not guild:
+                await cur.execute("INSERT INTO guilds (guild_id, dj_only_enabled, dj_role_id) VALUES (%s, 0, NULL)",
+                                  guild_id)
+                await conn.commit()
+
+
+# Checks if a given user_id is in the users table, associated with the given guild_id.
+async def enter_user(user_id, guild_id):
+    async with aiomysql.connect(**MYSQL_CONFIG) as conn:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute("SELECT user_id, guild_id FROM users WHERE  user_id = %s AND guild_id = %s", (user_id, guild_id))
+            user = await cur.fetchall()
+            if not user:
+                await cur.execute("INSERT INTO users (user_id, guild_id) VALUES (%s, %s)", (user_id, guild_id))
+                await conn.commit()
 
 
 # Tries to enter a given song into the songs table. If the song already exists, nothing happens.
