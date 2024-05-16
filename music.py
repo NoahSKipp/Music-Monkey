@@ -9,7 +9,7 @@ from discord import app_commands, Interaction, Embed, ButtonStyle, ui
 from discord.ext import commands, tasks
 import wavelink
 import logging
-import database
+import database as db
 from datetime import datetime, timedelta
 
 
@@ -87,7 +87,7 @@ class RoleSelect(discord.ui.Select):
 
         # Update the DJ role in the database
         role_id = int(self.values[0])
-        await database.set_dj_role(interaction.guild_id, role_id)
+        await db.set_dj_role(interaction.guild_id, role_id)
         role_name = next((option.label for option in self.options if option.value == self.values[0]), 'Unknown Role')
         await interaction.response.send_message(f"The DJ role has been set to **{role_name}**.", ephemeral=True)
         self.view.stop()  # Stop the view to prevent further interactions
@@ -133,9 +133,15 @@ class MusicCog(commands.Cog):
     async def interaction_check(self, interaction: discord.Interaction):
         logging.debug(f'Interaction check for {interaction.user} in guild {interaction.guild_id}')
 
+        # Check if the given guild is stored in the db.
+        await db.enter_guild(interaction.guild_id)
+
+        # Check if the given user is stored in the database for this guild.
+        await db.enter_user(interaction.user.id, interaction.guild_id)
+
         # Retrieve the DJ-only mode status and DJ role ID from the database
-        dj_only = await database.get_dj_only_enabled(interaction.guild_id)
-        dj_role_id = await database.get_dj_role(interaction.guild_id)
+        dj_only = await db.get_dj_only_enabled(interaction.guild_id)
+        dj_role_id = await db.get_dj_role(interaction.guild_id)
 
         # If DJ-only mode is not enabled, allow all interactions
         if not dj_only:
@@ -248,61 +254,62 @@ class MusicCog(commands.Cog):
     @commands.Cog.listener()
     async def on_wavelink_track_end(self, payload: wavelink.TrackEndEventPayload):
         player: wavelink.Player = payload.player
-        if not player.queue.is_empty:
-            next_track = player.queue.get()
-            await player.play(next_track)  # Play the next track
+        if player:
+            if not player.queue.is_empty:
+                next_track = player.queue.get()
+                await player.play(next_track)  # Play the next track
 
-            # Retrieve the requester ID
-            requester_id = getattr(next_track.extras, 'requester_id', None)
-            requester = await self.bot.fetch_user(requester_id) if requester_id else "AutoPlay"
+                # Retrieve the requester ID
+                requester_id = getattr(next_track.extras, 'requester_id', None)
+                requester = await self.bot.fetch_user(requester_id) if requester_id else "AutoPlay"
 
-            duration = format_duration(next_track.length)
+                duration = format_duration(next_track.length)
 
-            embed = discord.Embed(
-                title="Now Playing",
-                description=f"**{next_track.title}** by `{next_track.author}`\nRequested by: {requester.display_name if requester_id else 'AutoPlay'}\nDuration: {duration}",
-                color=discord.Color.dark_red()
-            )
-            if next_track.artwork:
-                embed.set_image(url=next_track.artwork)
+                embed = discord.Embed(
+                    title="Now Playing",
+                    description=f"**{next_track.title}** by `{next_track.author}`\nRequested by: {requester.display_name if requester_id else 'AutoPlay'}\nDuration: {duration}",
+                    color=discord.Color.dark_red()
+                )
+                if next_track.artwork:
+                    embed.set_image(url=next_track.artwork)
 
-            if hasattr(player, 'now_playing_message') and player.now_playing_message:
-                try:
-                    await player.now_playing_message.edit(embed=embed)
-                except (discord.NotFound, discord.Forbidden):
+                if hasattr(player, 'now_playing_message') and player.now_playing_message:
+                    try:
+                        await player.now_playing_message.edit(embed=embed)
+                    except (discord.NotFound, discord.Forbidden):
+                        channel = self.bot.get_channel(player.interaction_channel_id)
+                        if channel:
+                            player.now_playing_message = await channel.send(embed=embed)
+                    except discord.HTTPException as e:
+                        logging.error(f"Failed to edit message due to an HTTP error: {e}")
+                else:
+                    # If no existing message to edit or message was deleted, send a new one
                     channel = self.bot.get_channel(player.interaction_channel_id)
                     if channel:
                         player.now_playing_message = await channel.send(embed=embed)
-                except discord.HTTPException as e:
-                    logging.error(f"Failed to edit message due to an HTTP error: {e}")
             else:
-                # If no existing message to edit or message was deleted, send a new one
-                channel = self.bot.get_channel(player.interaction_channel_id)
-                if channel:
-                    player.now_playing_message = await channel.send(embed=embed)
-        else:
-            # Update the embed to reflect that nothing is playing
-            embed = discord.Embed(
-                title="🎵 Nothing is Playing 🎵",
-                description=(
-                    "The music queue is empty, and nothing is currently playing. 🎶\n"
-                    "Start playing a new song to fill the air with tunes!"
-                ),
-                color=discord.Color.dark_red()
-            )
-            if hasattr(player, 'now_playing_message') and player.now_playing_message:
-                try:
-                    await player.now_playing_message.edit(embed=embed, view=None)
-                except (discord.NotFound, discord.Forbidden):
+                # Update the embed to reflect that nothing is playing
+                embed = discord.Embed(
+                    title="🎵 Nothing is Playing 🎵",
+                    description=(
+                        "The music queue is empty, and nothing is currently playing. 🎶\n"
+                        "Start playing a new song to fill the air with tunes!"
+                    ),
+                    color=discord.Color.dark_red()
+                )
+                if hasattr(player, 'now_playing_message') and player.now_playing_message:
+                    try:
+                        await player.now_playing_message.edit(embed=embed, view=None)
+                    except (discord.NotFound, discord.Forbidden):
+                        channel = self.bot.get_channel(player.interaction_channel_id)
+                        if channel:
+                            player.now_playing_message = await channel.send(embed=embed)
+                    except discord.HTTPException as e:
+                        logging.error(f"Failed to edit message due to an HTTP error: {e}")
+                else:
                     channel = self.bot.get_channel(player.interaction_channel_id)
                     if channel:
                         player.now_playing_message = await channel.send(embed=embed)
-                except discord.HTTPException as e:
-                    logging.error(f"Failed to edit message due to an HTTP error: {e}")
-            else:
-                channel = self.bot.get_channel(player.interaction_channel_id)
-                if channel:
-                    player.now_playing_message = await channel.send(embed=embed)
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
@@ -346,9 +353,9 @@ class MusicCog(commands.Cog):
     @commands.has_permissions(manage_roles=True)
     async def toggle_dj_mode(self, interaction: discord.Interaction):
         guild_id = interaction.guild_id
-        current_state = await database.get_dj_only_enabled(guild_id) or False
+        current_state = await db.get_dj_only_enabled(guild_id) or False
         new_state = not current_state
-        await database.set_dj_only_commands(guild_id, new_state)
+        await db.set_dj_only_enabled(guild_id, new_state)
 
         await interaction.response.send_message(f'DJ-only mode is now {"enabled" if new_state else "disabled"}.')
 
@@ -371,7 +378,7 @@ class MusicCog(commands.Cog):
 
         # Update the DJ role in the database
         selected_role_id = int(view.children[0].values[0])
-        await database.set_dj_role(interaction.guild_id, selected_role_id)
+        await db.set_dj_role(interaction.guild_id, selected_role_id)
 
     @app_commands.command(name='play', description='Play or queue a song from a URL or search term')
     @app_commands.describe(query='URL or search term of the song to play')
@@ -418,6 +425,7 @@ class MusicCog(commands.Cog):
                 for track in tracks:
                     track.extras.requester_id = interaction.user.id
                     player.queue.put(track)
+
             else:
                 track = results[0]
                 track.extras.requester_id = interaction.user.id
@@ -431,11 +439,13 @@ class MusicCog(commands.Cog):
                 await interaction.followup.send(added_tracks_info, ephemeral=False)
 
             # Increment the play count for the user in the database
-            await database.increment_plays(interaction.guild_id, interaction.user.id)
+            await db.enter_song(player.current.identifier, player.current.title, player.current.author, player.current.length)
+            await db.increment_plays(interaction.user.id, player.current.identifier, interaction.guild_id)
 
         except Exception as e:
             logging.error(f"Error processing the play command: {e}")
             await interaction.followup.send('An error occurred while trying to play the track.', ephemeral=True)
+
 
     async def send_vote_reminder(self, interaction):
         embed = Embed(
@@ -695,8 +705,8 @@ class MusicButtons(ui.View):
         logging.debug(f'Interaction check for {interaction.user} in guild {interaction.guild_id}')
 
         # Retrieve the DJ-only mode status and DJ role ID from the database
-        dj_only = await database.get_dj_only_enabled(interaction.guild_id)
-        dj_role_id = await database.get_dj_role(interaction.guild_id)
+        dj_only = await db.get_dj_only_enabled(interaction.guild_id)
+        dj_role_id = await db.get_dj_role(interaction.guild_id)
 
         # If DJ-only mode is not enabled, allow all interactions
         if not dj_only:
