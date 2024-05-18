@@ -106,33 +106,6 @@ class MusicCog(commands.Cog):
         self.last_vote_reminder_time_per_guild = {}
         logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
-    # async def start_inactivity_timer(self, guild, voice_state):
-    #     logging.debug(f"Starting inactivity timer for guild {guild.id}")
-    #     await asyncio.sleep(5)  # 5 seconds countdown
-    #     logging.debug(f"Timer ended for guild {guild.id}")
-    #
-    #     if guild.id in self.voice_state_timers and self.voice_state_timers[guild.id] == voice_state:
-    #         logging.debug(f"Voice state matches stored state for guild {guild.id}")
-    #         if len(voice_state.channel.members) == 1:
-    #             logging.debug(f"Bot is alone in the channel for guild {guild.id}, disconnecting")
-    #             await self.disconnect_and_cleanup(voice_state)
-    #             interaction_channel_id = getattr(voice_state, 'interaction_channel_id', None)
-    #             if interaction_channel_id:
-    #                 logging.debug(f"Interaction channel ID found: {interaction_channel_id}")
-    #                 channel = self.bot.get_channel(interaction_channel_id)
-    #                 if channel:
-    #                     logging.debug(f"Sending inactivity message to channel {interaction_channel_id}")
-    #                     await self.send_inactivity_message(channel)
-    #                 else:
-    #                     logging.error("Cannot find the channel to send the inactivity message.")
-    #             else:
-    #                 logging.error("Interaction channel ID not set on voice state.")
-    #         else:
-    #             logging.debug(f"Bot is no longer alone in the channel for guild {guild.id}, deleting timer")
-    #             del self.voice_state_timers[guild.id]
-    #     else:
-    #         logging.info(f"Voice state for guild {guild.id} has changed; timer will not proceed.")
-
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
         logging.debug("Voice state update triggered.")
@@ -140,12 +113,9 @@ class MusicCog(commands.Cog):
         # Get the voice client for the guild
         voice_state = member.guild.voice_client
 
-        # If there is no voice client or it's not an instance of wavelink.Player, return
+        # If there is no voice client, or it's not an instance of wavelink.Player, return
         if voice_state is None or not isinstance(voice_state, wavelink.Player):
             return
-
-        # Assign the voice client to player
-        player = voice_state
 
         # Check if the bot is alone in the voice channel
         if len(voice_state.channel.members) == 1:
@@ -155,14 +125,14 @@ class MusicCog(commands.Cog):
             if len(voice_state.channel.members) == 1:
                 # Retrieve the text channel to send the inactivity message
                 # Ensure interaction_channel_id is correctly set in your player instance
-                text_channel = self.bot.get_channel(player.interaction_channel_id)
+                text_channel = self.bot.get_channel(voice_state.interaction_channel_id)
 
                 # If the text channel exists, send an inactivity message
                 if text_channel:
                     await self.send_inactivity_message(text_channel)
 
                 # Disconnect the bot and clean up
-                await self.disconnect_and_cleanup(player)
+                await self.disconnect_and_cleanup(voice_state)
 
     async def user_in_voice(self, interaction):
         member = interaction.guild.get_member(interaction.user.id)
@@ -349,6 +319,7 @@ class MusicCog(commands.Cog):
                     if channel:
                         player.now_playing_message = await channel.send(embed=embed)
 
+    # This doesn't seem to be in use anymore
     @commands.Cog.listener()
     async def voice_state_update(self, member, before, after):
         if member.id == self.bot.user.id and before.channel is not None and after.channel is None:
