@@ -11,6 +11,7 @@ import wavelink
 import logging
 import database as db
 from datetime import datetime, timedelta
+import asyncio
 
 
 class SelectRoleView(discord.ui.View):
@@ -102,29 +103,51 @@ class Track(wavelink.Playable):
 class MusicCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.voice_state_timers = {}
         self.last_vote_reminder_time_per_guild = {}
         logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
-    @tasks.loop(seconds=10)
-    async def check_voice_channel(self):
-        for guild in self.bot.guilds:
-            # Retrieve the bot's voice state in the guild
-            voice_state = guild.voice_client
+    # async def start_inactivity_timer(self, guild, voice_state):
+    #     logging.debug(f"Starting inactivity timer for guild {guild.id}")
+    #     await asyncio.sleep(5)  # 5 seconds countdown
+    #     logging.debug(f"Timer ended for guild {guild.id}")
+    #
+    #     if guild.id in self.voice_state_timers and self.voice_state_timers[guild.id] == voice_state:
+    #         logging.debug(f"Voice state matches stored state for guild {guild.id}")
+    #         if len(voice_state.channel.members) == 1:
+    #             logging.debug(f"Bot is alone in the channel for guild {guild.id}, disconnecting")
+    #             await self.disconnect_and_cleanup(voice_state)
+    #             interaction_channel_id = getattr(voice_state, 'interaction_channel_id', None)
+    #             if interaction_channel_id:
+    #                 logging.debug(f"Interaction channel ID found: {interaction_channel_id}")
+    #                 channel = self.bot.get_channel(interaction_channel_id)
+    #                 if channel:
+    #                     logging.debug(f"Sending inactivity message to channel {interaction_channel_id}")
+    #                     await self.send_inactivity_message(channel)
+    #                 else:
+    #                     logging.error("Cannot find the channel to send the inactivity message.")
+    #             else:
+    #                 logging.error("Interaction channel ID not set on voice state.")
+    #         else:
+    #             logging.debug(f"Bot is no longer alone in the channel for guild {guild.id}, deleting timer")
+    #             del self.voice_state_timers[guild.id]
+    #     else:
+    #         logging.info(f"Voice state for guild {guild.id} has changed; timer will not proceed.")
 
-            # Check if the bot is connected to a voice channel
-            if voice_state and voice_state.channel:
-                channel = voice_state.channel
-                if len(channel.members) == 1:  # Only the bot is left in the channel
-                    print(f"Disconnecting due to inactivity in channel: {channel.name} of guild: {guild.name}")
-                    await self.disconnect_and_cleanup(voice_state)
+    @commands.Cog.listener()
+    async def on_voice_state_update(self, member, before, after):
+        logging.debug("Voice state update triggered.")
 
-    @check_voice_channel.before_loop
-    async def before_check_voice_channel(self):
-        await self.bot.wait_until_ready()
+        voice_state = member.guild.voice_client
+        if voice_state is None:
+            return
 
-    @check_voice_channel.before_loop
-    async def before_check_voice_channel(self):
-        await self.bot.wait_until_ready()
+        while len(voice_state.channel.members) == 1:
+            await asyncio.sleep(10)
+            if len(voice_state.channel.members) == 1:
+                await voice_state.disconnect()
+            else:
+                break
 
     async def user_in_voice(self, interaction):
         member = interaction.guild.get_member(interaction.user.id)
@@ -312,7 +335,7 @@ class MusicCog(commands.Cog):
                         player.now_playing_message = await channel.send(embed=embed)
 
     @commands.Cog.listener()
-    async def on_voice_state_update(self, member, before, after):
+    async def voice_state_update(self, member, before, after):
         if member.id == self.bot.user.id and before.channel is not None and after.channel is None:
             player = member.guild.voice_client
             if player and hasattr(player, 'now_playing_message') and player.now_playing_message:
@@ -375,6 +398,9 @@ class MusicCog(commands.Cog):
         ]
         view = SelectRoleView(options, interaction.user.id)
         await interaction.response.send_message("Please select a DJ role from the menu:", view=view, ephemeral=True)
+
+        # Wait for the user's selection
+        await view.wait()
 
         # Update the DJ role in the database
         selected_role_id = int(view.children[0].values[0])
@@ -439,13 +465,13 @@ class MusicCog(commands.Cog):
                 await interaction.followup.send(added_tracks_info, ephemeral=False)
 
             # Increment the play count for the user in the database
-            await db.enter_song(player.current.identifier, player.current.title, player.current.author, player.current.length)
+            await db.enter_song(player.current.identifier, player.current.title, player.current.author,
+                                player.current.length)
             await db.increment_plays(interaction.user.id, player.current.identifier, interaction.guild_id)
 
         except Exception as e:
             logging.error(f"Error processing the play command: {e}")
             await interaction.followup.send('An error occurred while trying to play the track.', ephemeral=True)
-
 
     async def send_vote_reminder(self, interaction):
         embed = Embed(

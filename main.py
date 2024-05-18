@@ -57,6 +57,7 @@ async def main():
     intents = discord.Intents.default()
     intents.members = True
     intents.message_content = True
+    intents.voice_states = True
 
     # Instantiate the bot
     bot = MusicMonkey(command_prefix='/', intents=intents)
