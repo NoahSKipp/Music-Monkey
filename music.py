@@ -103,7 +103,6 @@ class Track(wavelink.Playable):
 class MusicCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.voice_state_timers = {}
         self.last_vote_reminder_time_per_guild = {}
         logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -138,16 +137,32 @@ class MusicCog(commands.Cog):
     async def on_voice_state_update(self, member, before, after):
         logging.debug("Voice state update triggered.")
 
+        # Get the voice client for the guild
         voice_state = member.guild.voice_client
-        if voice_state is None:
+
+        # If there is no voice client or it's not an instance of wavelink.Player, return
+        if voice_state is None or not isinstance(voice_state, wavelink.Player):
             return
 
-        while len(voice_state.channel.members) == 1:
+        # Assign the voice client to player
+        player = voice_state
+
+        # Check if the bot is alone in the voice channel
+        if len(voice_state.channel.members) == 1:
+            # Wait for 10 seconds to confirm inactivity
             await asyncio.sleep(10)
+            # Check again if the bot is still alone in the channel
             if len(voice_state.channel.members) == 1:
-                await voice_state.disconnect()
-            else:
-                break
+                # Retrieve the text channel to send the inactivity message
+                # Ensure interaction_channel_id is correctly set in your player instance
+                text_channel = self.bot.get_channel(player.interaction_channel_id)
+
+                # If the text channel exists, send an inactivity message
+                if text_channel:
+                    await self.send_inactivity_message(text_channel)
+
+                # Disconnect the bot and clean up
+                await self.disconnect_and_cleanup(player)
 
     async def user_in_voice(self, interaction):
         member = interaction.guild.get_member(interaction.user.id)
