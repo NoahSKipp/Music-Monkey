@@ -37,12 +37,14 @@ class QueuePaginationView(ui.View):
         self.children[2].disabled = self.current_page >= self.total_pages  # Next button
         self.children[3].disabled = self.current_page >= self.total_pages  # Last button
 
+    # Sets up the button to switch to the first page of the queue embed
     @ui.button(label="FIRST", style=ButtonStyle.grey, custom_id="first_queue_page")
     async def first_page(self, interaction: Interaction, button: ui.Button):
         self.current_page = 1
         await self.cog.display_queue(interaction, self.current_page, edit=True)
         await interaction.response.send_message()
 
+    # Sets up the button to switch to the previous page of the queue embed
     @ui.button(label="BACK", style=ButtonStyle.primary, custom_id="previous_queue_page")
     async def previous_page(self, interaction: Interaction, button: ui.Button):
         if self.current_page > 1:
@@ -51,6 +53,7 @@ class QueuePaginationView(ui.View):
             await interaction.response.send_message()
         button.disabled = self.current_page <= 1
 
+    # Sets up the button to switch to the next page of the queue embed
     @ui.button(label="NEXT", style=ButtonStyle.primary, custom_id="next_queue_page")
     async def next_page(self, interaction: Interaction, button: ui.Button):
         if self.current_page < self.total_pages:
@@ -59,13 +62,14 @@ class QueuePaginationView(ui.View):
             await interaction.response.send_message()
         button.disabled = self.current_page >= self.total_pages
 
+    # Sets up the button to switch to the last page of the queue embed
     @ui.button(label="LAST", style=ButtonStyle.grey, custom_id="last_queue_page")
     async def last_page(self, interaction: Interaction, button: ui.Button):
         self.current_page = self.total_pages
         await self.cog.display_queue(interaction, self.current_page, edit=True)
         await interaction.response.send_message()
 
-
+# Helper function to format times
 def format_duration(ms):
     # Convert milliseconds to minutes and seconds
     seconds = int((ms / 1000) % 60)
@@ -94,7 +98,8 @@ class RoleSelect(discord.ui.Select):
         await db.set_dj_role(interaction.guild_id, role_id)
         role_name = next((option.label for option in self.options if option.value == self.values[0]), 'Unknown Role')
         await interaction.response.send_message(f"The DJ role has been set to **{role_name}**.", ephemeral=True)
-        self.view.stop()  # Stop the view to prevent further interactions
+        # Stop the view to prevent further interactions
+        self.view.stop()
 
 
 # Set up the class for Track
@@ -233,6 +238,8 @@ class MusicCog(commands.Cog):
                 requester = await self.bot.fetch_user(requester_id)
             except discord.NotFound:
                 # If the user can't be found, fall back to "AutoPlay"
+                # Note: There is no situation in which a message is displayed without a valid requester_id stored,
+                # other than when the song is played via the AutoPlay function of wavelink
                 requester = None
             except Exception as e:
                 logging.error(f"Failed to fetch user {requester_id}: {e}")
@@ -558,10 +565,12 @@ class MusicCog(commands.Cog):
         await self.disconnect_and_cleanup(player)
         await interaction.response.send_message('Stopped the music and cleared the queue.', ephemeral=False)
 
+    # Command to display the queue
     @app_commands.command(name='queue', description='Show the current music queue')
     async def show_queue(self, interaction: Interaction):
         await self.display_queue(interaction, 1)
 
+    # Command to clear the queue
     @app_commands.command(name='clear', description='Clear the current music queue')
     async def clear(self, interaction: Interaction):
         if not await self.user_in_voice(interaction):
@@ -571,11 +580,13 @@ class MusicCog(commands.Cog):
 
         player = interaction.guild.voice_client
         if not player or player.queue.is_empty:
+            # If queue is empty, send a message
             await interaction.response.send_message("The queue is already empty.", ephemeral=True)
         else:
             player.queue.clear()  # Clear the queue
             await interaction.response.send_message("The music queue has been cleared.", ephemeral=True)
 
+    # Command to remove songs from the queue that were requested by users no longer in the voice channel
     @app_commands.command(name='cleargone',
                           description='Remove tracks from the queue requested by users not in the voice channel')
     async def cleargone(self, interaction: discord.Interaction):
@@ -602,6 +613,7 @@ class MusicCog(commands.Cog):
         await interaction.response.send_message(
             f"Removed {removed_count} tracks requested by users not currently in the channel.", ephemeral=False)
 
+    # Command to remove a song from the queue
     @app_commands.command(name='remove', description='Remove a specific song from the queue by its position')
     @app_commands.describe(position='Position in the queue of the song to remove')
     async def remove(self, interaction: discord.Interaction, position: int):
@@ -626,6 +638,7 @@ class MusicCog(commands.Cog):
         except IndexError:
             await interaction.response.send_message("No track found at the specified position.", ephemeral=True)
 
+    # Command to shuffle the queue
     @app_commands.command(name='shuffle', description='Shuffles the current music queue')
     async def shuffle(self, interaction: Interaction):
         if not await self.user_in_voice(interaction):
@@ -647,6 +660,7 @@ class MusicCog(commands.Cog):
         # Send confirmation message
         await interaction.response.send_message("The queue has been shuffled.", ephemeral=True)
 
+    # Command to toggle autoplay on the player
     @app_commands.command(name='autoplay', description='Toggle AutoPlay mode for automatic music recommendations')
     @app_commands.choices(mode=[
         app_commands.Choice(name='enabled', value='enabled'),
@@ -670,6 +684,7 @@ class MusicCog(commands.Cog):
             player.autoplay = wavelink.AutoPlayMode.disabled
             await interaction.response.send_message("AutoPlay has been disabled.", ephemeral=True)
 
+    # Command to toggle the loop mode on the player
     @app_commands.command(name='loop', description='Toggle loop mode for the current track or queue')
     async def loop(self, interaction: discord.Interaction):
         player: wavelink.Player = interaction.guild.voice_client
@@ -693,6 +708,7 @@ class MusicCog(commands.Cog):
         mode_description = "normal (no looping)" if new_mode == wavelink.QueueMode.normal else "looping current track"
         await interaction.response.send_message(f"Queue mode set to {mode_description}.", ephemeral=False)
 
+    # Command to jump to a specific time in the current track
     @app_commands.command(name='jump', description='Jump to a specific time in the current track')
     @app_commands.describe(time='Time to jump to in the format mm:ss')
     async def jump(self, interaction: discord.Interaction, time: str):
@@ -719,12 +735,14 @@ class MusicCog(commands.Cog):
             await interaction.response.send_message("There is no active player or track playing.", ephemeral=True)
 
 
+#   Sets up the class for the player control buttons
 class MusicButtons(ui.View):
     def __init__(self, player, cog):
         super().__init__(timeout=None)
         self.player = player
         self.cog = cog
 
+    # Checks if the user has the required permissions to interact with the buttons
     async def interaction_check(self, interaction: discord.Interaction):
         logging.debug(f'Interaction check for {interaction.user} in guild {interaction.guild_id}')
 
@@ -751,15 +769,17 @@ class MusicButtons(ui.View):
         )
         return False
 
+    # Sets up queue button
     @ui.button(label='QUEUE', style=ButtonStyle.green, custom_id='queue_button')
     async def show_queue(self, interaction: Interaction, button: ui.Button):
         if self.player and not self.player.queue.is_empty:
-            # Start from the first page
+            # Starts displaying queue from the first page
             await self.cog.display_queue(interaction, 1, edit=False)
         else:
             # Respond if the queue is empty
             await interaction.response.send_message("The queue is empty.", ephemeral=True)
 
+    # Sets up buttons for volume increase
     @ui.button(label='VOL +', style=ButtonStyle.green, custom_id='vol_up_button')
     async def volume_up(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
@@ -770,6 +790,7 @@ class MusicButtons(ui.View):
         await self.player.set_volume(new_volume)
         await interaction.response.send_message(f'Volume increased to {new_volume}%', ephemeral=True)
 
+    # Sets up button to pause music playback
     @ui.button(label='PAUSE', style=ButtonStyle.blurple, custom_id='pause_button')
     async def pause(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
@@ -787,6 +808,7 @@ class MusicButtons(ui.View):
         # Edit the message to reflect the new button label
         await interaction.response.edit_message(view=self)
 
+    # Sets up the button for volume decrease
     @ui.button(label='VOL -', style=ButtonStyle.green, custom_id='vol_down_button')
     async def volume_down(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
@@ -797,6 +819,7 @@ class MusicButtons(ui.View):
         await self.player.set_volume(new_volume)
         await interaction.response.send_message(f'Volume decreased to {new_volume}%', ephemeral=True)
 
+    # Sets up the button to skip the current song
     @ui.button(label='SKIP', style=ButtonStyle.green, custom_id='skip_button')
     async def skip(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
@@ -806,6 +829,7 @@ class MusicButtons(ui.View):
         await self.player.skip()
         await interaction.response.send_message('Skipped the current song', ephemeral=True)
 
+    # Sets up the button to toggle the loop mode
     @ui.button(label='LOOP', style=ButtonStyle.green, custom_id='loop_button')
     async def toggle_loop(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
@@ -824,6 +848,7 @@ class MusicButtons(ui.View):
         await interaction.response.edit_message(view=self)
         await interaction.followup.send(response, ephemeral=True)
 
+    # Sets up the button for the rewind functionality
     @ui.button(label='REWIND', style=ButtonStyle.green, custom_id='rewind_button')
     async def rewind(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
@@ -833,9 +858,9 @@ class MusicButtons(ui.View):
         # Calculate the new position, ensuring it does not fall below zero
         new_position = max(0, self.player.position - 5000)
         await self.player.seek(new_position)
-        await interaction.response.send_message(f"Rewound 5 seconds.",
-                                                ephemeral=True)
+        await interaction.response.send_message(f"Rewound 5 seconds.", ephemeral=True)
 
+    # Sets up the button to stop the music playback
     @ui.button(label='STOP', style=ButtonStyle.red, custom_id='stop_button')
     async def stop_music(self, interaction: discord.Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
@@ -862,6 +887,7 @@ class MusicButtons(ui.View):
         # Clear the reference to the now playing message
         self.player.now_playing_message = None
 
+    # Sets up the button for the forward functionality
     @ui.button(label='FORWARD', style=ButtonStyle.green, custom_id='forward_button')
     async def forward(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
@@ -871,19 +897,21 @@ class MusicButtons(ui.View):
         # Calculate the new position, ensuring it does not exceed the track's duration
         new_position = min(self.player.position + 5000, self.player.current.length)
         await self.player.seek(new_position)
-        await interaction.response.send_message(f"Forwarded 5 seconds.",
-                                                ephemeral=True)
+        await interaction.response.send_message(f"Forwarded 5 seconds.", ephemeral=True)
 
+    # Sets up the button to toggle autoplay
     @ui.button(label='AUTOPLAY', style=ButtonStyle.green, custom_id='autoplay_button')
     async def toggle_autoplay(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
             await interaction.response.send_message("You must be in a voice channel to use this command.",
                                                     ephemeral=True)
             return
+        # If autoplay is disabled, enable it and change button label
         if self.player.autoplay == wavelink.AutoPlayMode.disabled:
             self.player.autoplay = wavelink.AutoPlayMode.enabled
             button.label = "DISABLE AUTOPLAY"
             response = "Autoplay enabled."
+        # Otherwise disable autoplay and change button label
         else:
             self.player.autoplay = wavelink.AutoPlayMode.disabled
             button.label = "ENABLE AUTOPLAY"
@@ -892,5 +920,6 @@ class MusicButtons(ui.View):
         await interaction.followup.send(response, ephemeral=True)
 
 
+# Adds the cog to the bot
 async def setup(bot):
     await bot.add_cog(MusicCog(bot))
