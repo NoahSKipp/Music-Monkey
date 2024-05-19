@@ -69,6 +69,7 @@ class QueuePaginationView(ui.View):
         await self.cog.display_queue(interaction, self.current_page, edit=True)
         await interaction.response.send_message()
 
+
 # Helper function to format times
 def format_duration(ms):
     # Convert milliseconds to minutes and seconds
@@ -769,6 +770,129 @@ class MusicCog(commands.Cog):
                                                     ephemeral=True)
         else:
             await interaction.response.send_message("There is no active player or track playing.", ephemeral=True)
+
+    # Command to apply filters to the playback
+    @app_commands.command(name='filters', description='Select a filter to apply')
+    async def filters(self, interaction: discord.Interaction):
+        player = interaction.guild.voice_client
+        if not player:
+            return await interaction.response.send_message("Not connected to a voice channel.", ephemeral=True)
+
+        options = [
+            discord.SelectOption(label='Bass Boost', description='Enhances the bass frequencies', value='bass_boost'),
+            discord.SelectOption(label='Nightcore', description='Increases the pitch and speed',
+                                 value='nightcore'),
+            discord.SelectOption(label='Vaporwave',
+                                 description='Adds a slow rotation and slight pitch shift',
+                                 value='vaporwave'),
+            discord.SelectOption(label='Karaoke', description='Reduces the lead vocals for a karaoke effect',
+                                 value='karaoke'),
+            discord.SelectOption(label='Tremolo', description='Adds a tremolo effect with periodic volume oscillation',
+                                 value='tremolo'),
+            discord.SelectOption(label='Distortion', description='Adds a distortion effect for a grittier sound',
+                                 value='distortion')
+        ]
+
+        view = FilterSelectView(options, interaction.user.id, player)
+        await interaction.response.send_message("Please select a filter to apply:", view=view, ephemeral=True)
+
+    # Command to reset the filters back to default playback
+    @app_commands.command(name='resetfilter', description='Reset all filters')
+    async def resetfilter(self, interaction: discord.Interaction):
+        player = interaction.guild.voice_client
+        if not player:
+            return await interaction.response.send_message("Not connected to a voice channel.", ephemeral=True)
+
+        filters = wavelink.Filters()
+        filters.reset()
+        await player.set_filters(filters)
+        await interaction.response.send_message("All filters have been reset!", ephemeral=True)
+
+
+# Set up and add the view class for the filter selection
+class FilterSelectView(discord.ui.View):
+    def __init__(self, options, user_id, player):
+        super().__init__()
+        self.user_id = user_id
+        self.player = player
+        self.add_item(FilterSelect(options, user_id, player))
+
+
+# Set up the filter select class
+class FilterSelect(discord.ui.Select):
+    def __init__(self, options, user_id, player):
+        self.user_id = user_id
+        self.player = player
+        super().__init__(placeholder='Choose a filter...', min_values=1, max_values=1, options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+
+        filter_name = self.values[0]
+        if filter_name == 'bass_boost':
+            await apply_bass_boost(self.player)
+        elif filter_name == 'nightcore':
+            await apply_nightcore(self.player)
+        elif filter_name == 'vaporwave':
+            await apply_vaporwave(self.player)
+        elif filter_name == 'karaoke':
+            await apply_karaoke(self.player)
+        elif filter_name == 'tremolo':
+            await apply_tremolo(self.player)
+        elif filter_name == 'distortion':
+            await apply_distortion(self.player)
+
+        await interaction.response.send_message(f'Applied {filter_name.replace("_", " ").title()} filter!',
+                                                ephemeral=True)
+
+
+# Apply the bass boost effect
+async def apply_bass_boost(player):
+    filters = wavelink.Filters()
+    filters.equalizer.set(bands=[
+        {"band": 0, "gain": 0.25},
+        {"band": 1, "gain": 0.25},
+        {"band": 2, "gain": 0.25},
+        {"band": 3, "gain": 0.2},
+        {"band": 4, "gain": 0.15}
+    ])
+    await player.set_filters(filters)
+
+
+# Apply the nightcore effect
+async def apply_nightcore(player):
+    filters = wavelink.Filters()
+    filters.timescale.set(pitch=1.25, speed=1.25)
+    await player.set_filters(filters)
+
+
+# Apply the vaporwave effect
+async def apply_vaporwave(player):
+    filters = wavelink.Filters()
+    filters.timescale.set(pitch=0.8, speed=0.85)
+    filters.rotation.set(rotation_hz=0.1)
+    await player.set_filters(filters)
+
+
+# Apply the karaoke effect
+async def apply_karaoke(player):
+    filters = wavelink.Filters()
+    filters.karaoke.set(level=1.0, mono_level=1.0, filter_band=220.0, filter_width=100.0)
+    await player.set_filters(filters)
+
+
+# Apply the tremolo effect
+async def apply_tremolo(player):
+    filters = wavelink.Filters()
+    filters.tremolo.set(frequency=4.0, depth=0.75)
+    await player.set_filters(filters)
+
+
+# Apply the distortion effect
+async def apply_distortion(player):
+    filters = wavelink.Filters()
+    filters.distortion.set(sin_offset=0.5, sin_scale=0.5, cos_offset=0.5, cos_scale=0.5, tan_offset=0.5, tan_scale=0.5,
+                           offset=0.5, scale=0.5)
+    await player.set_filters(filters)
 
 
 #   Sets up the class for the player control buttons
