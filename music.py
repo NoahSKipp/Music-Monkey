@@ -613,6 +613,42 @@ class MusicCog(commands.Cog):
         await interaction.response.send_message(
             f"Removed {removed_count} tracks requested by users not currently in the channel.", ephemeral=False)
 
+    # Command to move a specific song in the queue to a new position in the queue
+    @app_commands.command(name='move', description='Move a song in the queue from one position to another')
+    @app_commands.describe(position="The song's current position in the queue", new_position="The song's new position "
+                                                                                             "in the queue")
+    async def move(self, interaction: discord.Interaction, position: int, new_position: int):
+        if not await self.user_in_voice(interaction):
+            await interaction.response.send_message("You must be in a voice channel to use this command.",
+                                                    ephemeral=True)
+            return
+
+        player = interaction.guild.voice_client
+        if not player or player.queue.is_empty:
+            await interaction.response.send_message("The queue is empty.", ephemeral=True)
+            return
+
+        # Convert to zero-indexed
+        position -= 1
+        new_position -= 1
+
+        if position < 0 or new_position < 0 or position >= len(player.queue) or new_position >= len(player.queue):
+            await interaction.response.send_message("Invalid positions provided.", ephemeral=True)
+            return
+
+        try:
+            # Retrieve the track from the current position
+            track = player.queue.get_at(position)
+            # Remove the track from the current position
+            player.queue.remove(track)
+            # Insert the track at the new position
+            player.queue.put_at(new_position, track)
+
+            await interaction.response.send_message(
+                f"Moved track from position {position + 1} to position {new_position + 1}.", ephemeral=False)
+        except (IndexError, wavelink.QueueEmpty) as e:
+            await interaction.response.send_message(f"An error occurred: {str(e)}", ephemeral=True)
+
     # Command to remove a song from the queue
     @app_commands.command(name='remove', description='Remove a specific song from the queue by its position')
     @app_commands.describe(position='Position in the queue of the song to remove')
