@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 import asyncio
 
 
+# Set up the role view class for the DJ selection
 class SelectRoleView(discord.ui.View):
     def __init__(self, options, user_id):
         super().__init__()
@@ -21,6 +22,7 @@ class SelectRoleView(discord.ui.View):
         self.add_item(RoleSelect(options))
 
 
+# Set up the view class for the queue buttons
 class QueuePaginationView(ui.View):
     def __init__(self, cog, interaction, current_page, total_pages):
         super().__init__(timeout=None)
@@ -76,6 +78,7 @@ def format_duration(ms):
         return f"{minutes}:{seconds:02}"
 
 
+# Set up the class for the DJ role selection
 class RoleSelect(discord.ui.Select):
     def __init__(self, options):
         super().__init__(placeholder='Choose a DJ role...', min_values=1, max_values=1, options=options)
@@ -94,18 +97,21 @@ class RoleSelect(discord.ui.Select):
         self.view.stop()  # Stop the view to prevent further interactions
 
 
+# Set up the class for Track
 class Track(wavelink.Playable):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.requester = None
 
 
+# Set up the class for the Music cog
 class MusicCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.last_vote_reminder_time_per_guild = {}
         logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
+    # Cog listener to catch changes in the voice state
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
         logging.debug("Voice state update triggered.")
@@ -134,10 +140,12 @@ class MusicCog(commands.Cog):
                 # Disconnect the bot and clean up
                 await self.disconnect_and_cleanup(voice_state)
 
+    # Checks for the user and the associated voice channel
     async def user_in_voice(self, interaction):
         member = interaction.guild.get_member(interaction.user.id)
         return member.voice and member.voice.channel
 
+    # Checks if the user has the required permissions to engage with playback commands/buttons
     async def interaction_check(self, interaction: discord.Interaction):
         logging.debug(f'Interaction check for {interaction.user} in guild {interaction.guild_id}')
 
@@ -168,10 +176,12 @@ class MusicCog(commands.Cog):
         )
         return False
 
+    # Cog listener to check if the node is ready
     @commands.Cog.listener()
     async def on_wavelink_node_ready(self, payload: wavelink.NodeReadyEventPayload):
         print(f'Node {payload.node.identifier} is ready!')
 
+    # Cog listener to check if the player is currently inactive
     @commands.Cog.listener()
     async def on_wavelink_inactive_player(self, player: wavelink.Player):
         # Ensure that the player is still connected before sending the message and disconnecting
@@ -181,6 +191,7 @@ class MusicCog(commands.Cog):
                 await self.send_inactivity_message(channel)
         await self.disconnect_and_cleanup(player)
 
+    # Sets up an inactivity message
     async def send_inactivity_message(self, channel: discord.TextChannel):
         embed = discord.Embed(
             title="🎵 Music Monkey Left Due to Inactivity 🎵",
@@ -194,6 +205,7 @@ class MusicCog(commands.Cog):
 
         await channel.send(embed=embed)
 
+    # Stop the playback, disconnects from the voice channel and cleans the "Now Playing" message
     async def disconnect_and_cleanup(self, player: wavelink.Player):
         await player.stop()
         await player.disconnect()
@@ -206,6 +218,7 @@ class MusicCog(commands.Cog):
                 logging.error(f"Failed to delete now playing message: {e}")
         player.now_playing_message = None
 
+    # Cog listener to react to a track starting and grab the info necessary for further functions
     @commands.Cog.listener()
     async def on_wavelink_track_start(self, payload: wavelink.TrackStartEventPayload):
         player: wavelink.Player = payload.player
@@ -228,6 +241,7 @@ class MusicCog(commands.Cog):
         # Formatting the duration using the helper function
         duration = format_duration(track.length)
 
+        # Sets up the "Now Playing" embed message
         embed = discord.Embed(
             title="Now Playing",
             description=f"**{track.title}** by `{track.author}`\nRequested by: {requester.display_name if requester else 'AutoPlay'}\nDuration: {duration}",
@@ -259,6 +273,7 @@ class MusicCog(commands.Cog):
         else:
             logging.error("Interaction channel ID not set on player.")
 
+    # Cog listener to react to a track ending and start followup steps
     @commands.Cog.listener()
     async def on_wavelink_track_end(self, payload: wavelink.TrackEndEventPayload):
         player: wavelink.Player = payload.player
@@ -270,9 +285,9 @@ class MusicCog(commands.Cog):
                 # Retrieve the requester ID
                 requester_id = getattr(next_track.extras, 'requester_id', None)
                 requester = await self.bot.fetch_user(requester_id) if requester_id else "AutoPlay"
-
+                # Formats the track length for easier readability
                 duration = format_duration(next_track.length)
-
+                # Sets up the "Now Playing" embed for the following songs
                 embed = discord.Embed(
                     title="Now Playing",
                     description=f"**{next_track.title}** by `{next_track.author}`\nRequested by: {requester.display_name if requester_id else 'AutoPlay'}\nDuration: {duration}",
@@ -280,7 +295,7 @@ class MusicCog(commands.Cog):
                 )
                 if next_track.artwork:
                     embed.set_image(url=next_track.artwork)
-
+                # Edits the existing "Now Playing" message (if one exists)
                 if hasattr(player, 'now_playing_message') and player.now_playing_message:
                     try:
                         await player.now_playing_message.edit(embed=embed)
@@ -319,26 +334,16 @@ class MusicCog(commands.Cog):
                     if channel:
                         player.now_playing_message = await channel.send(embed=embed)
 
-    # This doesn't seem to be in use anymore
-    @commands.Cog.listener()
-    async def voice_state_update(self, member, before, after):
-        if member.id == self.bot.user.id and before.channel is not None and after.channel is None:
-            player = member.guild.voice_client
-            if player and hasattr(player, 'now_playing_message') and player.now_playing_message:
-                try:
-                    await player.now_playing_message.delete()
-                except discord.NotFound:
-                    pass  # Message already deleted
-                except discord.HTTPException as e:
-                    logging.error(f"Failed to delete now playing message: {e}")
-                player.now_playing_message = None  # Clear the reference
-
+    # Sets up the player queue display
     async def display_queue(self, interaction: discord.Interaction, page: int, edit=False):
+        # Gets the player object of the bot in the current guild's voice channel
         player = interaction.guild.voice_client
+        # If there's no player, no player queue or an empty player queue, displays a message
         if not player or not player.queue or player.queue.is_empty:
             await interaction.response.send_message("The queue is empty.")
             return
 
+        # Setting the parameters for the queue embed
         items_per_page = 10
         total_pages = (len(player.queue) + items_per_page - 1) // items_per_page
         start_index = (page - 1) * items_per_page
@@ -358,6 +363,7 @@ class MusicCog(commands.Cog):
         else:
             await interaction.response.send_message(embed=embed, view=view, ephemeral=False)
 
+    # Command to trigger the DJ-only playback mode
     @app_commands.command(name='dj', description='Toggle DJ-only command restrictions')
     @commands.has_permissions(manage_roles=True)
     async def toggle_dj_mode(self, interaction: discord.Interaction):
@@ -368,6 +374,7 @@ class MusicCog(commands.Cog):
 
         await interaction.response.send_message(f'DJ-only mode is now {"enabled" if new_state else "disabled"}.')
 
+    # Command to select a DJ role
     @app_commands.command(name='setdj', description='Set a DJ role')
     async def set_dj_role(self, interaction: discord.Interaction):
         if not interaction.user.guild_permissions.manage_roles:
@@ -392,6 +399,7 @@ class MusicCog(commands.Cog):
         selected_role_id = int(view.children[0].values[0])
         await db.set_dj_role(interaction.guild_id, selected_role_id)
 
+    # Command to engage playback with a given query
     @app_commands.command(name='play', description='Play or queue a song from a URL or search term')
     @app_commands.describe(query='URL or search term of the song to play')
     async def play(self, interaction: Interaction, query: str):
@@ -400,7 +408,7 @@ class MusicCog(commands.Cog):
         guild_id = str(interaction.guild_id)
         current_time = datetime.now()
 
-        # Check if the reminder should be sent for this guild
+        # Check if the vote reminder should be sent for this guild
         if (guild_id in self.last_vote_reminder_time_per_guild and
                 (current_time - self.last_vote_reminder_time_per_guild[guild_id]) > timedelta(hours=12)):
             await self.send_vote_reminder(interaction)
@@ -409,28 +417,34 @@ class MusicCog(commands.Cog):
             await self.send_vote_reminder(interaction)
             self.last_vote_reminder_time_per_guild[guild_id] = current_time
 
+        # Attempt to search for the query
         try:
             results = await wavelink.Playable.search(query)
+            # If the query yields no results, send a message
             if not results:
                 await interaction.followup.send('No tracks found with that query.', ephemeral=True)
                 return
 
+            # If the user sending the command is not in a voice channel, sends a message
             channel = interaction.user.voice.channel if interaction.user and interaction.user.voice else None
             if not channel:
                 await interaction.followup.send("You must be in a voice channel to play music.", ephemeral=True)
                 return
 
+            # If no node is currently available, sends a message
             node = wavelink.Pool.get_node()
             if node is None:
                 await interaction.followup.send("No node available. Please try again later.", ephemeral=True)
                 return
 
+            # If no player exists in the voice channel, connect one
             player = interaction.guild.voice_client
             if not player:
                 player = await channel.connect(cls=wavelink.Player)
                 player.guild_id = interaction.guild_id
                 player.interaction_channel_id = interaction.channel_id
 
+            # If query is a playlist, add all tracks from the playlist and send a message
             if isinstance(results, wavelink.Playlist):
                 tracks = results.tracks
                 added_tracks_info = f"Added {len(tracks)} tracks from the playlist to the queue."
@@ -438,12 +452,14 @@ class MusicCog(commands.Cog):
                     track.extras.requester_id = interaction.user.id
                     player.queue.put(track)
 
+            # If query is not a playlist, queue the first result and send a message
             else:
                 track = results[0]
                 track.extras.requester_id = interaction.user.id
                 player.queue.put(track)
                 added_tracks_info = f"Added to queue: {track.title}"
 
+            # If the player isn't currently playing or paused, move onto the next track
             if not player.playing and not player.paused:
                 next_track = player.queue.get()
                 await player.play(next_track)
@@ -455,10 +471,12 @@ class MusicCog(commands.Cog):
                                 player.current.length)
             await db.increment_plays(interaction.user.id, player.current.identifier, interaction.guild_id)
 
+        # Otherwise, send an error message
         except Exception as e:
             logging.error(f"Error processing the play command: {e}")
             await interaction.followup.send('An error occurred while trying to play the track.', ephemeral=True)
 
+    # Sets up a vote reminder embed
     async def send_vote_reminder(self, interaction):
         embed = Embed(
             title="Support Us by Voting!",
@@ -471,6 +489,7 @@ class MusicCog(commands.Cog):
         embed.set_footer(text="Thank you for your support! Your votes make a big difference!")
         await interaction.followup.send(embed=embed, ephemeral=False)
 
+    # Command to skip the current song
     @app_commands.command(name='skip', description='Skip the current playing song')
     async def skip(self, interaction: Interaction):
         if not await self.user_in_voice(interaction):
@@ -493,6 +512,7 @@ class MusicCog(commands.Cog):
         else:
             await interaction.response.send_message("The queue is currently empty.")
 
+    # Command to pause the music playback
     @app_commands.command(name='pause', description='Pause the music playback')
     async def pause(self, interaction: discord.Interaction):
         if not await self.user_in_voice(interaction):
@@ -509,6 +529,7 @@ class MusicCog(commands.Cog):
         else:
             await interaction.response.send_message("The bot is not connected to a voice channel.", ephemeral=True)
 
+    # Command to resume the music playback (if paused)
     @app_commands.command(name='resume', description='Resume the music playback if paused')
     async def resume(self, interaction: discord.Interaction):
         if not await self.user_in_voice(interaction):
@@ -525,6 +546,8 @@ class MusicCog(commands.Cog):
         else:
             await interaction.response.send_message("The bot is not connected to a voice channel.", ephemeral=True)
 
+    # Command to stop the music playback, disconnect the bot and clear the queue
+    # noinspection PyTypeChecker
     @app_commands.command(name='stop', description='Stop the music and clear the queue')
     async def stop(self, interaction: discord.Interaction):
         if not await self.user_in_voice(interaction):
@@ -532,19 +555,8 @@ class MusicCog(commands.Cog):
                                                     ephemeral=True)
             return
         player = interaction.guild.voice_client
-        await player.stop()
-        player.queue.clear()
-        await player.disconnect(force=False)
+        await self.disconnect_and_cleanup(player)
         await interaction.response.send_message('Stopped the music and cleared the queue.', ephemeral=False)
-
-        # Delete the now playing message
-        if hasattr(player, 'now_playing_message') and player.now_playing_message:
-            try:
-                await player.now_playing_message.delete()
-            except discord.NotFound:
-                pass  # If the message was already deleted, do nothing
-            except discord.HTTPException as e:
-                logging.error(f"Failed to delete now playing message: {e}")
 
     @app_commands.command(name='queue', description='Show the current music queue')
     async def show_queue(self, interaction: Interaction):
