@@ -171,6 +171,21 @@ async def submit_wonder_trade(song_id, name, artist, length, uri, user_id, note)
     return await enter_wonder_trade(user_id, song_id, note)
 
 
+# Sends a recommendation to the user.
+async def receive_wonder_trade(user_id):
+    async with aiomysql.connect(**MYSQL_CONFIG) as conn:
+        async with conn.cursor() as cur:
+            await cur.execute('SELECT COUNT(*) FROM wonderTrades WHERE user_id != %s', user_id)
+            count = await cur.fetchone()
+            if count and count != 0:
+                await cur.execute('SELECT s.uri FROM songs AS s, wonderTrades AS wt WHERE wt.user_id != %s AND '
+                                  'wt.song_id = s.song_id ORDER BY RAND() LIMIT 1', user_id)
+                result = await cur.fetchone()
+                if result:
+                    return result[0]
+            return '_There are no available wondertrades available at this moment. Try again later!'
+
+
 # Increments the play count for the given song, for the given user, in the given guild.
 async def increment_plays(user_id, song_id, guild_id):
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
