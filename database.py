@@ -32,6 +32,7 @@ async def setup_database():
                 name VARCHAR(255) NOT NULL,
                 artist VARCHAR(255) NOT NULL,
                 length INT NOT NULL,
+                uri VARCHAR(255) NOT NULL,
                 PRIMARY KEY (song_id)
             );
             CREATE TABLE IF NOT EXISTS users (
@@ -131,15 +132,43 @@ async def enter_user(user_id, guild_id):
 
 
 # Tries to enter a given song into the songs table. If the song already exists, nothing happens.
-async def enter_song(song_id, name, artist, length):
+async def enter_song(song_id, name, artist, length, uri):
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
         async with conn.cursor() as cur:
             await cur.execute('SELECT song_id FROM songs WHERE song_id = %s', song_id)
             result = await cur.fetchone()
             if not result:
-                await cur.execute('INSERT INTO songs (song_id, name, artist, length) VALUES (%s, %s, %s, %s)',
-                                  (song_id, name, artist, length))
+                await cur.execute('INSERT INTO songs (song_id, name, artist, length, uri) VALUES (%s, %s, %s, %s, %s)',
+                                  (song_id, name, artist, length, uri))
                 await conn.commit()
+
+
+# Tries to enter a given wonder trade into the wonderTrades table. If the song has already been recommended,
+# nothing happens. If the user has already recommended a song, nothing happens.
+async def enter_wonder_trade(user_id, song_id, note):
+    async with aiomysql.connect(**MYSQL_CONFIG) as conn:
+        async with conn.cursor() as cur:
+            await cur.execute('SELECT user_id FROM wonderTrades WHERE user_id = %s', user_id)
+            result = await cur.fetchone()
+            if not result:
+                await cur.execute('SELECT song_id FROM wonderTrades WHERE song_id = %s', song_id)
+                result = await cur.fetchone()
+                if not result:
+                    await cur.execute('INSERT INTO wonderTrades (song_id, user_id, note) VALUES (%s, %s, %s)',
+                                      (song_id, user_id, note))
+                    await conn.commit()
+                    return 'Your recommendation has been submitted!'
+                else:
+                    return 'This song has already been recommended by someone else. Try recommending another one!'
+            else:
+                return ('You\'ve already recommended a song! Wait some time for someone to give it a listen and '
+                        'then try again!')
+
+
+# Submits a wonder trade to the system.
+async def submit_wonder_trade(song_id, name, artist, length, uri, user_id, note):
+    await enter_song(song_id, name, artist, length, uri)
+    return await enter_wonder_trade(user_id, song_id, note)
 
 
 # Increments the play count for the given song, for the given user, in the given guild.
