@@ -178,11 +178,11 @@ async def receive_wonder_trade(user_id):
             await cur.execute('SELECT COUNT(*) FROM wonderTrades WHERE user_id != %s', user_id)
             count = await cur.fetchone()
             if count and count != 0:
-                await cur.execute('SELECT s.uri FROM songs AS s, wonderTrades AS wt WHERE wt.user_id != %s AND '
-                                  'wt.song_id = s.song_id ORDER BY RAND() LIMIT 1', user_id)
+                await cur.execute('SELECT s.uri, wt.note FROM songs AS s, wonderTrades AS wt WHERE wt.user_id != %s AND'
+                                  ' wt.song_id = s.song_id ORDER BY RAND() LIMIT 1', user_id)
                 result = await cur.fetchone()
                 if result:
-                    return result[0]
+                    return result[0], result[1]
             return '_There are no available wondertrades available at this moment. Try again later!'
 
 

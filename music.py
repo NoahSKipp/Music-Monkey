@@ -853,25 +853,35 @@ class MusicCog(commands.Cog):
 
     # Command to receive a recommendation/wondertrade.
     @app_commands.command(name='receive', description='Receive a song recommendation from anyone else using the bot!')
-    async def receive(self, interaction: Interaction):
-
-        # Displays a "Bot is thinking" message so that the Discord bot request does not timeout.
+    async def receive(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=False)
-
-        # Try to receive a recommendation.
         try:
-            result = await db.receive_wonder_trade(interaction.user.id)
-            if not result.startswith('_'):
-                await self.play_song(interaction, result)
-                await db.delete_wonder_trade(result)
-            else:
-                result = result.lstrip('_')
-                await interaction.followup.send(result)
+            uri, note = await db.receive_wonder_trade(interaction.user.id)
+            logging.info(f"Received wonder trade result: {uri}, {note}")
 
-        # Otherwise, send an error message.
+            if not uri.startswith('_'):
+                if note:
+                    embed = discord.Embed(
+                        title="You've received a song recommendation note!",
+                        description=f"Oh! It seems the person who recommended this song left you a note!\n"
+                                    f"||{note}||",
+                        color=discord.Color.blue()
+                    )
+                    embed.set_footer(text="Messages aren't monitored or filtered. View at your own discretion.")
+                    await interaction.followup.send(embed=embed)
+
+                await self.play_song(interaction, uri)
+                await db.delete_wonder_trade(uri)
+
+
+            else:
+                uri = uri.lstrip('_')
+                await interaction.followup.send(uri)
+
         except Exception as e:
             logging.error(f"Error processing the receive command: {e}")
-            await interaction.followup.send('An error occurred when trying to receive the wonder trade.', ephemeral=True)
+            await interaction.followup.send('An error occurred when trying to receive the wonder trade.',
+                                            ephemeral=True)
 
 
 # Set up and add the view class for the filter selection
