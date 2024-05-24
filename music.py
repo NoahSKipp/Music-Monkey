@@ -422,13 +422,13 @@ class MusicCog(commands.Cog):
         # Check if the vote reminder should be sent for this guild
         # Sam's Note: Make this into an external function,
         # so we can eventually make it toggle whenever a command is sent out.
-        if (guild_id in self.last_vote_reminder_time_per_guild and
-                (current_time - self.last_vote_reminder_time_per_guild[guild_id]) > timedelta(hours=12)):
-            await self.send_vote_reminder(interaction)
-            self.last_vote_reminder_time_per_guild[guild_id] = current_time
-        elif guild_id not in self.last_vote_reminder_time_per_guild:
-            await self.send_vote_reminder(interaction)
-            self.last_vote_reminder_time_per_guild[guild_id] = current_time
+        # if (guild_id in self.last_vote_reminder_time_per_guild and
+        #         (current_time - self.last_vote_reminder_time_per_guild[guild_id]) > timedelta(hours=12)):
+        #     await self.send_vote_reminder(interaction)
+        #     self.last_vote_reminder_time_per_guild[guild_id] = current_time
+        # elif guild_id not in self.last_vote_reminder_time_per_guild:
+        #     await self.send_vote_reminder(interaction)
+        #     self.last_vote_reminder_time_per_guild[guild_id] = current_time
 
         # Attempt to search for the query
         try:
@@ -820,7 +820,6 @@ class MusicCog(commands.Cog):
                            note='A small (up to 60 characters) message to go with your recommendation!')
     async def wondertrade(self, interaction: Interaction, query: str, note: str):
         # Displays a "Bot is thinking" message so that the Discord bot request does not timeout.
-        await interaction.response.defer(ephemeral=False)
         # Try to get a song from the extracted query to send as a wondertrade.
         try:
             # Searches for a song with the user's provided query.
@@ -859,9 +858,8 @@ class MusicCog(commands.Cog):
         # Try to receive a recommendation.
         try:
             result = await db.receive_wonder_trade(interaction.user.id)
-            print(result)
             if not result.startswith('_'):
-                await self.play_song(interaction, result[0])
+                await self.play_song(interaction, result)
             else:
                 result = result.lstrip('_')
                 await interaction.followup.send(result)
@@ -870,6 +868,7 @@ class MusicCog(commands.Cog):
         except Exception as e:
             logging.error(f"Error processing the receive command: {e}")
             await interaction.followup.send('An error occurred when trying to receive the wonder trade.', ephemeral=True)
+
 
 # Set up and add the view class for the filter selection
 class FilterSelectView(discord.ui.View):
