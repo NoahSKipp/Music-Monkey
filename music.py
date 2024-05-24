@@ -422,13 +422,13 @@ class MusicCog(commands.Cog):
         # Check if the vote reminder should be sent for this guild
         # Sam's Note: Make this into an external function,
         # so we can eventually make it toggle whenever a command is sent out.
-        # if (guild_id in self.last_vote_reminder_time_per_guild and
-        #         (current_time - self.last_vote_reminder_time_per_guild[guild_id]) > timedelta(hours=12)):
-        #     await self.send_vote_reminder(interaction)
-        #     self.last_vote_reminder_time_per_guild[guild_id] = current_time
-        # elif guild_id not in self.last_vote_reminder_time_per_guild:
-        #     await self.send_vote_reminder(interaction)
-        #     self.last_vote_reminder_time_per_guild[guild_id] = current_time
+        if (guild_id in self.last_vote_reminder_time_per_guild and
+                (current_time - self.last_vote_reminder_time_per_guild[guild_id]) > timedelta(hours=12)):
+            await self.send_vote_reminder(interaction)
+            self.last_vote_reminder_time_per_guild[guild_id] = current_time
+        elif guild_id not in self.last_vote_reminder_time_per_guild:
+            await self.send_vote_reminder(interaction)
+            self.last_vote_reminder_time_per_guild[guild_id] = current_time
 
         # Attempt to search for the query
         try:
@@ -819,6 +819,7 @@ class MusicCog(commands.Cog):
     @app_commands.describe(query='The name/link to the song you want to recommend',
                            note='A small (up to 60 characters) message to go with your recommendation!')
     async def wondertrade(self, interaction: Interaction, query: str, note: str):
+        await interaction.response.defer(ephemeral=True)
         # Displays a "Bot is thinking" message so that the Discord bot request does not timeout.
         # Try to get a song from the extracted query to send as a wondertrade.
         try:
@@ -842,6 +843,7 @@ class MusicCog(commands.Cog):
                 result = await db.submit_wonder_trade(search_result.identifier, search_result.title, search_result.author, search_result.length, search_result.uri,
                                                       interaction.user.id, note)
                 # Output the result to the user.
+                print("Wondertrade creation result:", result)
                 await interaction.followup.send(result, ephemeral=True)
 
         # Otherwise, send an error message.
@@ -852,6 +854,7 @@ class MusicCog(commands.Cog):
     # Command to receive a recommendation/wondertrade.
     @app_commands.command(name='receive', description='Receive a song recommendation from anyone else using the bot!')
     async def receive(self, interaction: Interaction):
+
         # Displays a "Bot is thinking" message so that the Discord bot request does not timeout.
         await interaction.response.defer(ephemeral=False)
 
@@ -860,6 +863,7 @@ class MusicCog(commands.Cog):
             result = await db.receive_wonder_trade(interaction.user.id)
             if not result.startswith('_'):
                 await self.play_song(interaction, result)
+                await db.delete_wonder_trade(result)
             else:
                 result = result.lstrip('_')
                 await interaction.followup.send(result)

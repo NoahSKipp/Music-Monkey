@@ -186,6 +186,14 @@ async def receive_wonder_trade(user_id):
             return '_There are no available wondertrades available at this moment. Try again later!'
 
 
+async def delete_wonder_trade(uri):
+    async with aiomysql.connect(**MYSQL_CONFIG) as conn:
+        async with conn.cursor() as cur:
+            await cur.execute('DELETE wonderTrades FROM wonderTrades JOIN songs ON wonderTrades.song_id = '
+                              'songs.song_id WHERE songs.uri = %s', uri)
+            await conn.commit()
+
+
 # Increments the play count for the given song, for the given user, in the given guild.
 async def increment_plays(user_id, song_id, guild_id):
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
