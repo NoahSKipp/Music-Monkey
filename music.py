@@ -412,11 +412,16 @@ class MusicCog(commands.Cog):
     @app_commands.describe(query='URL or search term of the song to play')
     async def play(self, interaction: Interaction, query: str):
         await interaction.response.defer(ephemeral=False)
+        await self.play_song(interaction, query)
 
+    # Finds and plays a song based off of the given query.
+    async def play_song(self, interaction: Interaction, query: str):
         guild_id = str(interaction.guild_id)
         current_time = datetime.now()
 
         # Check if the vote reminder should be sent for this guild
+        # Sam's Note: Make this into an external function,
+        # so we can eventually make it toggle whenever a command is sent out.
         if (guild_id in self.last_vote_reminder_time_per_guild and
                 (current_time - self.last_vote_reminder_time_per_guild[guild_id]) > timedelta(hours=12)):
             await self.send_vote_reminder(interaction)
@@ -428,6 +433,7 @@ class MusicCog(commands.Cog):
         # Attempt to search for the query
         try:
             results = await wavelink.Playable.search(query)
+            print(results)
             # If the query yields no results, send a message
             if not results:
                 await interaction.followup.send('No tracks found with that query.', ephemeral=True)
@@ -476,7 +482,7 @@ class MusicCog(commands.Cog):
 
             # Increment the play count for the user in the database
             await db.enter_song(player.current.identifier, player.current.title, player.current.author,
-                                player.current.length)
+                                player.current.length, player.current.uri)
             await db.increment_plays(interaction.user.id, player.current.identifier, interaction.guild_id)
 
         # Otherwise, send an error message
@@ -807,6 +813,65 @@ class MusicCog(commands.Cog):
         filters.reset()
         await player.set_filters(filters)
         await interaction.response.send_message("All filters have been reset!", ephemeral=True)
+
+    # Command to create a recommendation/wondertrade.
+    @app_commands.command(name='wondertrade', description='Submit a song recommendation to anyone else using the bot!')
+    @app_commands.describe(query='The name/link to the song you want to recommend',
+                           note='A small (up to 60 characters) message to go with your recommendation!')
+    async def wondertrade(self, interaction: Interaction, query: str, note: str):
+        await interaction.response.defer(ephemeral=True)
+        # Displays a "Bot is thinking" message so that the Discord bot request does not timeout.
+        # Try to get a song from the extracted query to send as a wondertrade.
+        try:
+            # Searches for a song with the user's provided query.
+            search_result = await wavelink.Playable.search(query)
+
+            # If the query yields no results, send a message and exit the function.
+            if not search_result:
+                await interaction.followup.send('No tracks found with that query.', ephemeral=True)
+                return
+
+            # If the query is a playlist, send a message and exit the function.
+            elif isinstance(search_result, wavelink.Playlist):
+                await interaction.followup.send('Please only send songs, not playlists.', ephemeral=True)
+                return
+
+            # Otherwise, attempt to create the wondertrade.
+            else:
+                # Note: search_result is initialized as a list, so we extract the first playable, the searched song.
+                search_result = search_result[0]
+                result = await db.submit_wonder_trade(search_result.identifier, search_result.title, search_result.author, search_result.length, search_result.uri,
+                                                      interaction.user.id, note)
+                # Output the result to the user.
+                print("Wondertrade creation result:", result)
+                await interaction.followup.send(result, ephemeral=True)
+
+        # Otherwise, send an error message.
+        except Exception as e:
+            logging.error(f"Error processing the wondertrade command: {e}")
+            await interaction.followup.send('An error occurred when trying to create the wonder trade.', ephemeral=True)
+
+    # Command to receive a recommendation/wondertrade.
+    @app_commands.command(name='receive', description='Receive a song recommendation from anyone else using the bot!')
+    async def receive(self, interaction: Interaction):
+
+        # Displays a "Bot is thinking" message so that the Discord bot request does not timeout.
+        await interaction.response.defer(ephemeral=False)
+
+        # Try to receive a recommendation.
+        try:
+            result = await db.receive_wonder_trade(interaction.user.id)
+            if not result.startswith('_'):
+                await self.play_song(interaction, result)
+                await db.delete_wonder_trade(result)
+            else:
+                result = result.lstrip('_')
+                await interaction.followup.send(result)
+
+        # Otherwise, send an error message.
+        except Exception as e:
+            logging.error(f"Error processing the receive command: {e}")
+            await interaction.followup.send('An error occurred when trying to receive the wonder trade.', ephemeral=True)
 
 
 # Set up and add the view class for the filter selection
