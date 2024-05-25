@@ -32,7 +32,7 @@ class HelpCog(commands.Cog):
                 "• 📈 Personalized music profiles to track your listening habits.\n"
                 "• ✨ Spread the joy of music with our **wondertrade**!"
             ),
-            color=discord.Color.gold()
+            color=discord.Color.blue()
         )
 
         return embed

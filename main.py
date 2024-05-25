@@ -30,7 +30,7 @@ class MusicMonkey(commands.Bot):
         await wavelink.Pool.connect(nodes=nodes, client=self)
 
         # Declare and load the wanted extensions to the Discord Bot.
-        extensions = ['music', 'musicprofile', 'recommend', 'help']
+        extensions = ['music', 'musicprofile', 'recommend', 'help', 'broadcast']
         for extension in extensions:
             await self.load_extension(extension)
 

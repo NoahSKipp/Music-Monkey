@@ -58,7 +58,7 @@ class MusicProfile(commands.Cog):
                 return
 
             embed = discord.Embed(title="🎵 Music Leaderboard 🎵", description="Top music players in the server!",
-                                  color=discord.Color.dark_gold())
+                                  color=discord.Color.blue())
 
             for idx, (user_id, count) in enumerate(leaderboard_data, start=1):
                 user = await self.bot.fetch_user(user_id)
