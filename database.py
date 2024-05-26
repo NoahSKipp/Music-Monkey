@@ -230,30 +230,43 @@ async def get_leaderboard(guild_id):
 async def get_user_stats(user_id):
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
         async with conn.cursor() as cur:
-            await cur.execute('SELECT SUM(count) AS total_count FROM plays WHERE user_id = %s', guild_id)
-            total_songs = cur.fetchone()
-            if not total_songs:
+            await cur.execute('SELECT SUM(count) AS total_count FROM plays WHERE user_id = %s', (user_id,))
+            total_songs = await cur.fetchone()
+            if not total_songs or total_songs[0] is None:
                 total_songs = 0
+            else:
+                total_songs = total_songs[0]
 
-            await cur.execute('SELECT SUM(songs.length * plays.count) AS total_played_length FROM plays JOIN songs ON '
-                              'plays.song_id = songs.song_id WHERE p.user_id = %s;', user_id)
-            total_playtime = cur.fetchone()
-            if not total_playtime:
+            await cur.execute(
+                'SELECT SUM(songs.length * plays.count) AS total_played_length FROM plays JOIN songs ON '
+                'plays.song_id = songs.song_id WHERE plays.user_id = %s;', (user_id,)
+            )
+            total_playtime = await cur.fetchone()
+            if not total_playtime or total_playtime[0] is None:
                 total_playtime = 0
-            total_playtime /= 3600000
+            else:
+                total_playtime = total_playtime[0] / 3600000  # Convert milliseconds to hours
 
-            await cur.execute('SELECT songs.artist, SUM(plays.count) AS total_artist_plays FROM plays JOIN songs ON '
-                              'plays.song_id = songs.song_id WHERE plays.user_id = %s GROUP BY songs.artist ORDER BY '
-                              'total_artist_plays DESC LIMIT 1;')
-            top_artist = cur.fetchone()
+            await cur.execute(
+                'SELECT songs.artist, SUM(plays.count) AS total_artist_plays FROM plays JOIN songs ON '
+                'plays.song_id = songs.song_id WHERE plays.user_id = %s GROUP BY songs.artist ORDER BY '
+                'total_artist_plays DESC LIMIT 1;', (user_id,)
+            )
+            top_artist = await cur.fetchone()
             if not top_artist:
                 top_artist = "None"
+            else:
+                top_artist = top_artist[0]
 
-            await cur.execute('SELECT songs.name, plays.count FROM plays JOIN songs ON plays.song_id = songs.song_id '
-                              'WHERE plays.user_id = 1 ORDER BY plays.count DESC LIMIT 1;')
-            top_song = cur.fetchone()
+            await cur.execute(
+                'SELECT songs.name, plays.count FROM plays JOIN songs ON plays.song_id = songs.song_id '
+                'WHERE plays.user_id = %s ORDER BY plays.count DESC LIMIT 1;', (user_id,)
+            )
+            top_song = await cur.fetchone()
             if not top_song:
                 top_song = "None"
+            else:
+                top_song = top_song[0]
 
             return {
                 'top_artist': top_artist,
@@ -261,3 +274,4 @@ async def get_user_stats(user_id):
                 'total_songs_played': total_songs,
                 'total_hours_played': total_playtime
             }
+
