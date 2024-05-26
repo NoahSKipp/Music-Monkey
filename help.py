@@ -29,9 +29,10 @@ class HelpCog(commands.Cog):
                 "• 📋 Manage music queues with ease.\n"
                 "• 🔍 Advanced music recommendations, powered by AI.\n"
                 "• 🏆 View server-wide music leaderboards.\n"
-                "• 📈 Personalized music profiles to track your listening habits."
+                "• 📈 Personalized music profiles to track your listening habits.\n"
+                "• ✨ Spread the joy of music with our **wondertrade**!"
             ),
-            color=discord.Color.gold()
+            color=discord.Color.blue()
         )
 
         return embed
@@ -90,17 +91,19 @@ class HelpCog(commands.Cog):
                 "`/skip` - Skip the current track.\n"
                 "`/stop` - Stop the music and clear the queue.\n"
                 "`/jump [time]` - Jump to a specific time in the track.\n"
-                "`/loop` - Toggle loop mode for the current track or queue.")
+                "`/loop` - Toggle loop mode for the current track or queue. \n"
+                "`/filters` - Select a filter to apply to the playback.\n"
+                "`/resetfilter` - Reset the currently applied filter(s).")
 
     def get_queue_management_commands(self):
         return ("**Queue Management Commands:**\n"
                 "`/queue` - Show the current music queue.\n"
                 "`/shuffle` - Shuffle the music queue.\n"
+                "`/move [position] [new_position]` - Move a song in the queue from one position to another. \n"
                 "`/remove [position]` - Remove a specific song from the queue based on its position.\n"
                 "`/clear` - Clear the current music queue.\n"
                 "`/cleargone` - Clear all songs from the queue that were requested by users who have since left the voice channel.\n"
-                "`/autoplay [mode]` - Toggle AutoPlay mode to automatically continue playing songs when the queue is empty."
-                )
+                "`/autoplay [mode]` - Toggle AutoPlay mode to automatically continue playing songs when the queue is empty.")
 
     def get_settings_commands(self):
         return ("**Settings and Configuration Commands:**\n"
@@ -109,7 +112,9 @@ class HelpCog(commands.Cog):
 
     def get_music_recommendations(self):
         return ("**Music Recommendations:**\n"
-                "`/recommend` - Get music recommendations based on your listening history, powered by AI.")
+                "`/recommend` - Get music recommendations based on your listening history, powered by AI. \n"
+                "`/wondertrade [query] [note]` - Submit a song recommendation to anyone else using the bot across any server!\n"
+                "`/receive` - Receive a song recommendation from anyone else using the bot across any server!")
 
     def get_community_and_profiles_info(self):
         return ("**Community and User Profiles:**\n"
