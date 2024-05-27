@@ -23,7 +23,7 @@ class BroadcastCog(commands.Cog):
     async def relay_message_to_servers(self, content):
         # Create the embed message
         embed = discord.Embed(
-            title="📢 Announcement",
+            title="📰  News & Updates",
             description=content,
             color=discord.Color.blue()
         )

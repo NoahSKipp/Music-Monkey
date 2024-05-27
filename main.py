@@ -23,7 +23,10 @@ class MusicMonkey(commands.Bot):
         # Note: Currently only works for one node, need to figure out how to implement more for increased capacity.
         nodes = [
             wavelink.Node(identifier="MainMonkey", uri=f'http://{config.LAVALINK_HOST}:{config.LAVALINK_PORT}',
-                          password=config.LAVALINK_PASSWORD)
+                          password=config.LAVALINK_PASSWORD),
+            wavelink.Node(identifier="SecondMonkey", uri=f'http://{config.LAVALINK_HOST2}:{config.LAVALINK_PORT2}',
+                          password=config.LAVALINK_PASSWORD2)
+
         ]
 
         # Connect to the defined Lavalink node.

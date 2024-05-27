@@ -17,3 +17,8 @@ GEMINI = "AIzaSyDOkobbmuDYQSuomxs4syj3aEcaghP5eNs"
 LAVALINK_HOST = "n1.ll.darrennathanael.com"
 LAVALINK_PASSWORD = "glasshost1984"
 LAVALINK_PORT = 2269
+
+# Lavalink Node Variables
+LAVALINK_HOST2 = "node.catfein.com"
+LAVALINK_PASSWORD2 = "hanmetaforce"
+LAVALINK_PORT2 = 30034
