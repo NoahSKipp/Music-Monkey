@@ -285,16 +285,27 @@ class MusicCog(commands.Cog):
     @commands.Cog.listener()
     async def on_wavelink_track_end(self, payload: wavelink.TrackEndEventPayload):
         player: wavelink.Player = payload.player
+        logging.debug(f"Track ended: {payload.track.title}")
+
         if player:
+            # Check if the player was manually stopped
+            if getattr(player, 'was_forcefully_stopped', False):
+                logging.debug("Player was manually stopped. Skipping auto-play of next track.")
+                player.was_forcefully_stopped = False  # Reset the flag
+                return
+
             if not player.queue.is_empty:
                 next_track = player.queue.get()
+                logging.debug(f"Playing next track: {next_track.title}")
                 await player.play(next_track)  # Play the next track
 
                 # Retrieve the requester ID
                 requester_id = getattr(next_track.extras, 'requester_id', None)
                 requester = await self.bot.fetch_user(requester_id) if requester_id else "AutoPlay"
+
                 # Formats the track length for easier readability
                 duration = format_duration(next_track.length)
+
                 # Sets up the "Now Playing" embed for the following songs
                 embed = discord.Embed(
                     title="Now Playing",
@@ -303,6 +314,7 @@ class MusicCog(commands.Cog):
                 )
                 if next_track.artwork:
                     embed.set_image(url=next_track.artwork)
+
                 # Edits the existing "Now Playing" message (if one exists)
                 if hasattr(player, 'now_playing_message') and player.now_playing_message:
                     try:
@@ -564,13 +576,18 @@ class MusicCog(commands.Cog):
     # noinspection PyTypeChecker
     @app_commands.command(name='stop', description='Stop the music and clear the queue')
     async def stop(self, interaction: discord.Interaction):
+        logging.debug("Stop command received.")
         if not await self.user_in_voice(interaction):
             await interaction.response.send_message("You must be in a voice channel to use this command.",
                                                     ephemeral=True)
             return
+
         player = interaction.guild.voice_client
-        await self.disconnect_and_cleanup(player)
-        await interaction.response.send_message('Stopped the music and cleared the queue.', ephemeral=False)
+        if player:
+            logging.debug("Setting was_forcefully_stopped flag to True.")
+            player.was_forcefully_stopped = True  # Set the flag before stopping the player
+            await self.disconnect_and_cleanup(player)
+            await interaction.response.send_message('Stopped the music and cleared the queue.', ephemeral=False)
 
     # Command to display the queue
     @app_commands.command(name='queue', description='Show the current music queue')
@@ -1097,11 +1114,18 @@ class MusicButtons(ui.View):
 
     # Sets up the button to stop the music playback
     @ui.button(label='STOP', style=ButtonStyle.red, custom_id='stop_button')
-    async def stop_music(self, interaction: discord.Interaction, button: ui.Button):
+    async def stop_music(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
             await interaction.response.send_message("You must be in a voice channel to use this command.",
                                                     ephemeral=True)
             return
+
+        # Set the was_forcefully_stopped flag
+        if hasattr(self.player, 'was_manually_stopped'):
+            self.player.was_forcefully_stopped = True
+        else:
+            self.player.was_forcefully_stopped = True
+
         # Stops the current track, clears the queue, and disconnects the player from the channel
         await self.player.stop()
         await self.player.disconnect()
