@@ -117,6 +117,32 @@ class MusicCog(commands.Cog):
         self.last_vote_reminder_time_per_guild = {}
         logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
+    # Function to check if the vote reminder should be sent for the guild
+    async def vote_reminder(self, interaction: Interaction):
+        guild_id = str(interaction.guild_id)
+        current_time = datetime.now()
+
+        if (guild_id in self.last_vote_reminder_time_per_guild and
+                (current_time - self.last_vote_reminder_time_per_guild[guild_id]) > timedelta(hours=12)):
+            await self.send_vote_reminder(interaction)
+            self.last_vote_reminder_time_per_guild[guild_id] = current_time
+        elif guild_id not in self.last_vote_reminder_time_per_guild:
+            await self.send_vote_reminder(interaction)
+            self.last_vote_reminder_time_per_guild[guild_id] = current_time
+
+    # Sets up a vote reminder embed
+    async def send_vote_reminder(self, interaction):
+        embed = Embed(
+            title="Support Us by Voting!",
+            description="🌟 Your votes help keep the bot free and continuously improving. Please take a moment to "
+                        "support us!",
+            color=0x00ff00
+        )
+        embed.add_field(name="Vote Here", value="[Vote on Top.gg](https://top.gg/bot/1228071177239531620/vote)")
+        embed.set_thumbnail(url=interaction.client.user.avatar.url)
+        embed.set_footer(text="Thank you for your support! Your votes make a big difference!")
+        await interaction.followup.send(embed=embed, ephemeral=False)
+
     # Cog listener to catch changes in the voice state
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
@@ -433,19 +459,8 @@ class MusicCog(commands.Cog):
 
     # Finds and plays a song based off of the given query.
     async def play_song(self, interaction: Interaction, query: str):
-        guild_id = str(interaction.guild_id)
-        current_time = datetime.now()
-
         # Check if the vote reminder should be sent for this guild
-        # Sam's Note: Make this into an external function,
-        # so we can eventually make it toggle whenever a command is sent out.
-        if (guild_id in self.last_vote_reminder_time_per_guild and
-                (current_time - self.last_vote_reminder_time_per_guild[guild_id]) > timedelta(hours=12)):
-            await self.send_vote_reminder(interaction)
-            self.last_vote_reminder_time_per_guild[guild_id] = current_time
-        elif guild_id not in self.last_vote_reminder_time_per_guild:
-            await self.send_vote_reminder(interaction)
-            self.last_vote_reminder_time_per_guild[guild_id] = current_time
+        await self.vote_reminder(interaction)
 
         # Attempt to search for the query
         try:
@@ -506,19 +521,6 @@ class MusicCog(commands.Cog):
         except Exception as e:
             logging.error(f"Error processing the play command: {e}")
             await interaction.followup.send('An error occurred while trying to play the track.', ephemeral=True)
-
-    # Sets up a vote reminder embed
-    async def send_vote_reminder(self, interaction):
-        embed = Embed(
-            title="Support Us by Voting!",
-            description="🌟 Your votes help keep the bot free and continuously improving. Please take a moment to "
-                        "support us!",
-            color=0x00ff00
-        )
-        embed.add_field(name="Vote Here", value="[Vote on Top.gg](https://top.gg/bot/1228071177239531620/vote)")
-        embed.set_thumbnail(url=interaction.client.user.avatar.url)
-        embed.set_footer(text="Thank you for your support! Your votes make a big difference!")
-        await interaction.followup.send(embed=embed, ephemeral=False)
 
     # Command to skip the current song
     @app_commands.command(name='skip', description='Skip the current playing song')
