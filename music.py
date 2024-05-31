@@ -471,6 +471,7 @@ class MusicCog(commands.Cog):
         await interaction.response.defer(ephemeral=False)
         await self.play_song(interaction, query)
 
+    # Handles command execution errors and delegates to the error_handler
     @play.error
     async def play_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         await self.error_handler(interaction, error)
@@ -564,6 +565,7 @@ class MusicCog(commands.Cog):
         else:
             await interaction.response.send_message("The queue is currently empty.")
 
+    # Handles command execution errors and delegates to the error_handler
     @skip.error
     async def skip_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         await self.error_handler(interaction, error)
@@ -586,6 +588,7 @@ class MusicCog(commands.Cog):
         else:
             await interaction.response.send_message("The bot is not connected to a voice channel.", ephemeral=True)
 
+    # Handles command execution errors and delegates to the error_handler
     @pause.error
     async def pause_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         await self.error_handler(interaction, error)
@@ -608,6 +611,7 @@ class MusicCog(commands.Cog):
         else:
             await interaction.response.send_message("The bot is not connected to a voice channel.", ephemeral=True)
 
+    # Handles command execution errors and delegates to the error_handler
     @resume.error
     async def resume_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         await self.error_handler(interaction, error)
@@ -630,6 +634,7 @@ class MusicCog(commands.Cog):
             await self.disconnect_and_cleanup(player)
             await interaction.response.send_message('Stopped the music and cleared the queue.', ephemeral=False)
 
+    # Handles command execution errors and delegates to the error_handler
     @stop.error
     async def stop_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         await self.error_handler(interaction, error)
@@ -640,6 +645,7 @@ class MusicCog(commands.Cog):
     async def show_queue(self, interaction: Interaction):
         await self.display_queue(interaction, 1)
 
+    # Handles command execution errors and delegates to the error_handler
     @show_queue.error
     async def queue_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         await self.error_handler(interaction, error)
@@ -724,6 +730,7 @@ class MusicCog(commands.Cog):
         except (IndexError, wavelink.QueueEmpty) as e:
             await interaction.response.send_message(f"An error occurred: {str(e)}", ephemeral=True)
 
+    # Handles command execution errors and delegates to the error_handler
     @move.error
     async def move_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         await self.error_handler(interaction, error)
@@ -754,6 +761,7 @@ class MusicCog(commands.Cog):
         except IndexError:
             await interaction.response.send_message("No track found at the specified position.", ephemeral=True)
 
+    # Handles command execution errors and delegates to the error_handler
     @remove.error
     async def remove_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         await self.error_handler(interaction, error)
@@ -781,6 +789,7 @@ class MusicCog(commands.Cog):
         # Send confirmation message
         await interaction.response.send_message("The queue has been shuffled.", ephemeral=True)
 
+    # Handles command execution errors and delegates to the error_handler
     @shuffle.error
     async def shuffle_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         await self.error_handler(interaction, error)
@@ -810,6 +819,7 @@ class MusicCog(commands.Cog):
             player.autoplay = wavelink.AutoPlayMode.disabled
             await interaction.response.send_message("AutoPlay has been disabled.", ephemeral=True)
 
+    # Handles command execution errors and delegates to the error_handler
     @autoplay.error
     async def autoplay_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         await self.error_handler(interaction, error)
@@ -839,6 +849,7 @@ class MusicCog(commands.Cog):
         mode_description = "normal (no looping)" if new_mode == wavelink.QueueMode.normal else "looping current track"
         await interaction.response.send_message(f"Queue mode set to {mode_description}.", ephemeral=False)
 
+    # Handles command execution errors and delegates to the error_handler
     @loop.error
     async def loop_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         await self.error_handler(interaction, error)
@@ -944,6 +955,7 @@ class MusicCog(commands.Cog):
             logging.error(f"Error processing the wondertrade command: {e}")
             await interaction.followup.send('An error occurred when trying to create the wonder trade.', ephemeral=True)
 
+    # Handles command execution errors and delegates to the error_handler
     @wondertrade.error
     async def wondertrade_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         await self.error_handler(interaction, error)
@@ -981,6 +993,7 @@ class MusicCog(commands.Cog):
             await interaction.followup.send('An error occurred when trying to receive the wonder trade.',
                                             ephemeral=True)
 
+    # Handles command execution errors and delegates to the wondertrade_specific_error_handler
     @receive.error
     async def receive_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         await self.wondertrade_specific_error_handler(interaction, error)
