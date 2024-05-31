@@ -143,6 +143,19 @@ class MusicCog(commands.Cog):
         embed.set_footer(text="Thank you for your support! Your votes make a big difference!")
         await interaction.followup.send(embed=embed, ephemeral=False)
 
+    # Common error handler for commands
+    async def error_handler(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        if isinstance(error, app_commands.CommandOnCooldown):
+            await interaction.response.send_message(
+                f"Command is on cooldown. Try again in {error.retry_after:.2f} seconds.",
+                ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(
+                "An error occurred while processing the command.",
+                ephemeral=True
+            )
+
     # Cog listener to catch changes in the voice state
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
@@ -451,11 +464,16 @@ class MusicCog(commands.Cog):
         await db.set_dj_role(interaction.guild_id, selected_role_id)
 
     # Command to engage playback with a given query
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name='play', description='Play or queue a song from a URL or search term')
     @app_commands.describe(query='URL or search term of the song to play')
     async def play(self, interaction: Interaction, query: str):
         await interaction.response.defer(ephemeral=False)
         await self.play_song(interaction, query)
+
+    @play.error
+    async def play_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self.error_handler(interaction, error)
 
     # Finds and plays a song based off of the given query.
     async def play_song(self, interaction: Interaction, query: str):
@@ -523,6 +541,7 @@ class MusicCog(commands.Cog):
             await interaction.followup.send('An error occurred while trying to play the track.', ephemeral=True)
 
     # Command to skip the current song
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name='skip', description='Skip the current playing song')
     async def skip(self, interaction: Interaction):
         if not await self.user_in_voice(interaction):
@@ -545,7 +564,12 @@ class MusicCog(commands.Cog):
         else:
             await interaction.response.send_message("The queue is currently empty.")
 
+    @skip.error
+    async def skip_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self.error_handler(interaction, error)
+
     # Command to pause the music playback
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name='pause', description='Pause the music playback')
     async def pause(self, interaction: discord.Interaction):
         if not await self.user_in_voice(interaction):
@@ -562,7 +586,12 @@ class MusicCog(commands.Cog):
         else:
             await interaction.response.send_message("The bot is not connected to a voice channel.", ephemeral=True)
 
+    @pause.error
+    async def pause_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self.error_handler(interaction, error)
+
     # Command to resume the music playback (if paused)
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name='resume', description='Resume the music playback if paused')
     async def resume(self, interaction: discord.Interaction):
         if not await self.user_in_voice(interaction):
@@ -579,8 +608,13 @@ class MusicCog(commands.Cog):
         else:
             await interaction.response.send_message("The bot is not connected to a voice channel.", ephemeral=True)
 
+    @resume.error
+    async def resume_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self.error_handler(interaction, error)
+
     # Command to stop the music playback, disconnect the bot and clear the queue
     # noinspection PyTypeChecker
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name='stop', description='Stop the music and clear the queue')
     async def stop(self, interaction: discord.Interaction):
         logging.debug("Stop command received.")
@@ -596,10 +630,19 @@ class MusicCog(commands.Cog):
             await self.disconnect_and_cleanup(player)
             await interaction.response.send_message('Stopped the music and cleared the queue.', ephemeral=False)
 
+    @stop.error
+    async def stop_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self.error_handler(interaction, error)
+
     # Command to display the queue
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name='queue', description='Show the current music queue')
     async def show_queue(self, interaction: Interaction):
         await self.display_queue(interaction, 1)
+
+    @show_queue.error
+    async def queue_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self.error_handler(interaction, error)
 
     # Command to clear the queue
     @app_commands.command(name='clear', description='Clear the current music queue')
@@ -645,6 +688,7 @@ class MusicCog(commands.Cog):
             f"Removed {removed_count} tracks requested by users not currently in the channel.", ephemeral=False)
 
     # Command to move a specific song in the queue to a new position in the queue
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name='move', description='Move a song in the queue from one position to another')
     @app_commands.describe(position="The song's current position in the queue", new_position="The song's new position "
                                                                                              "in the queue")
@@ -680,7 +724,12 @@ class MusicCog(commands.Cog):
         except (IndexError, wavelink.QueueEmpty) as e:
             await interaction.response.send_message(f"An error occurred: {str(e)}", ephemeral=True)
 
+    @move.error
+    async def move_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self.error_handler(interaction, error)
+
     # Command to remove a song from the queue
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name='remove', description='Remove a specific song from the queue by its position')
     @app_commands.describe(position='Position in the queue of the song to remove')
     async def remove(self, interaction: discord.Interaction, position: int):
@@ -705,7 +754,12 @@ class MusicCog(commands.Cog):
         except IndexError:
             await interaction.response.send_message("No track found at the specified position.", ephemeral=True)
 
+    @remove.error
+    async def remove_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self.error_handler(interaction, error)
+
     # Command to shuffle the queue
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name='shuffle', description='Shuffles the current music queue')
     async def shuffle(self, interaction: Interaction):
         if not await self.user_in_voice(interaction):
@@ -727,7 +781,12 @@ class MusicCog(commands.Cog):
         # Send confirmation message
         await interaction.response.send_message("The queue has been shuffled.", ephemeral=True)
 
+    @shuffle.error
+    async def shuffle_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self.error_handler(interaction, error)
+
     # Command to toggle autoplay on the player
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name='autoplay', description='Toggle AutoPlay mode for automatic music recommendations')
     @app_commands.choices(mode=[
         app_commands.Choice(name='enabled', value='enabled'),
@@ -751,7 +810,12 @@ class MusicCog(commands.Cog):
             player.autoplay = wavelink.AutoPlayMode.disabled
             await interaction.response.send_message("AutoPlay has been disabled.", ephemeral=True)
 
+    @autoplay.error
+    async def autoplay_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self.error_handler(interaction, error)
+
     # Command to toggle the loop mode on the player
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name='loop', description='Toggle loop mode for the current track or queue')
     async def loop(self, interaction: discord.Interaction):
         player: wavelink.Player = interaction.guild.voice_client
@@ -774,6 +838,10 @@ class MusicCog(commands.Cog):
         # Send a response back to the user
         mode_description = "normal (no looping)" if new_mode == wavelink.QueueMode.normal else "looping current track"
         await interaction.response.send_message(f"Queue mode set to {mode_description}.", ephemeral=False)
+
+    @loop.error
+    async def loop_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self.error_handler(interaction, error)
 
     # Command to jump to a specific time in the current track
     @app_commands.command(name='jump', description='Jump to a specific time in the current track')
@@ -839,6 +907,7 @@ class MusicCog(commands.Cog):
         await interaction.response.send_message("All filters have been reset!", ephemeral=True)
 
     # Command to create a recommendation/wondertrade.
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name='wondertrade', description='Submit a song recommendation to anyone else using the bot!')
     @app_commands.describe(query='The name/link to the song you want to recommend',
                            note='A small (up to 60 characters) message to go with your recommendation!')
@@ -875,7 +944,12 @@ class MusicCog(commands.Cog):
             logging.error(f"Error processing the wondertrade command: {e}")
             await interaction.followup.send('An error occurred when trying to create the wonder trade.', ephemeral=True)
 
+    @wondertrade.error
+    async def wondertrade_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self.error_handler(interaction, error)
+
     # Command to receive a recommendation/wondertrade.
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name='receive', description='Receive a song recommendation from anyone else using the bot!')
     async def receive(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=False)
@@ -906,6 +980,10 @@ class MusicCog(commands.Cog):
             logging.error(f"Error processing the receive command: {e}")
             await interaction.followup.send('An error occurred when trying to receive the wonder trade.',
                                             ephemeral=True)
+
+    @receive.error
+    async def receive_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self.error_handler(interaction, error)
 
 
 # Set up and add the view class for the filter selection
