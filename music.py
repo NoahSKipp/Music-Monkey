@@ -949,7 +949,7 @@ class MusicCog(commands.Cog):
         await self.error_handler(interaction, error)
 
     # Command to receive a recommendation/wondertrade.
-    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
+    @discord.app_commands.checks.cooldown(1, 1800)  # 1 use every 30 minutes
     @app_commands.command(name='receive', description='Receive a song recommendation from anyone else using the bot!')
     async def receive(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=False)
@@ -983,7 +983,21 @@ class MusicCog(commands.Cog):
 
     @receive.error
     async def receive_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
-        await self.error_handler(interaction, error)
+        await self.wondertrade_specific_error_handler(interaction, error)
+
+    async def wondertrade_specific_error_handler(self, interaction: discord.Interaction,
+                                                 error: app_commands.AppCommandError):
+        if isinstance(error, app_commands.CommandOnCooldown):
+            minutes = error.retry_after / 60
+            await interaction.response.send_message(
+                f"You can only receive a wondertrade once every 30 minutes. Wait a little and try again in {minutes:.2f} minutes!",
+                ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(
+                "An error occurred while processing the command.",
+                ephemeral=True
+            )
 
 
 # Set up and add the view class for the filter selection
