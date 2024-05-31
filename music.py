@@ -474,6 +474,10 @@ class MusicCog(commands.Cog):
     # Handles command execution errors and delegates to the error_handler
     @play.error
     async def play_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        if not await self.user_in_voice(interaction):
+            await interaction.response.send_message("You must be in a voice channel to use this command.",
+                                                    ephemeral=True)
+            return
         await self.error_handler(interaction, error)
 
     # Finds and plays a song based off of the given query.
@@ -964,6 +968,10 @@ class MusicCog(commands.Cog):
     @discord.app_commands.checks.cooldown(1, 1800)  # 1 use every 30 minutes
     @app_commands.command(name='receive', description='Receive a song recommendation from anyone else using the bot!')
     async def receive(self, interaction: discord.Interaction):
+        if not await self.user_in_voice(interaction):
+            await interaction.response.send_message("You must be in a voice channel to use this command.",
+                                                    ephemeral=True)
+            return
         await interaction.response.defer(ephemeral=False)
         try:
             uri, note = await db.receive_wonder_trade(interaction.user.id)
