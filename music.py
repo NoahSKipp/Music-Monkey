@@ -144,6 +144,8 @@ class MusicCog(commands.Cog):
                     await self.send_inactivity_message(text_channel)
 
                 # Disconnect the bot and clean up
+                logging.debug("Setting was_forcefully_stopped flag to True for inactivity.")
+                voice_state.was_forcefully_stopped = True  # Set the flag before disconnecting
                 await self.disconnect_and_cleanup(voice_state)
 
     # Checks for the user and the associated voice channel
@@ -188,13 +190,14 @@ class MusicCog(commands.Cog):
         print(f'Node {payload.node.identifier} is ready!')
 
     # Cog listener to check if the player is currently inactive
-    @commands.Cog.listener()
     async def on_wavelink_inactive_player(self, player: wavelink.Player):
         # Ensure that the player is still connected before sending the message and disconnecting
         if player and hasattr(player, 'interaction_channel_id'):
             channel = self.bot.get_channel(player.interaction_channel_id)
             if channel:
                 await self.send_inactivity_message(channel)
+        logging.debug("Setting was_forcefully_stopped flag to True for inactivity.")
+        player.was_forcefully_stopped = True  # Set the flag before disconnecting
         await self.disconnect_and_cleanup(player)
 
     # Sets up an inactivity message
@@ -223,6 +226,7 @@ class MusicCog(commands.Cog):
             except discord.HTTPException as e:
                 logging.error(f"Failed to delete now playing message: {e}")
         player.now_playing_message = None
+        player.was_forcefully_stopped = False  # Reset the flag after cleanup
 
     # Cog listener to react to a track starting and grab the info necessary for further functions
     @commands.Cog.listener()
@@ -288,9 +292,10 @@ class MusicCog(commands.Cog):
         logging.debug(f"Track ended: {payload.track.title}")
 
         if player:
-            # Check if the player was manually stopped
+            # Check if the player was manually stopped or disconnected due to inactivity
             if getattr(player, 'was_forcefully_stopped', False):
-                logging.debug("Player was manually stopped. Skipping auto-play of next track.")
+                logging.debug(
+                    "Player was manually stopped or disconnected due to inactivity. Skipping auto-play of next track.")
                 player.was_forcefully_stopped = False  # Reset the flag
                 return
 
