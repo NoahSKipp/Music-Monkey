@@ -338,10 +338,23 @@ class MusicCog(commands.Cog):
                 player.was_forcefully_stopped = False  # Reset the flag
                 return
 
-            if not player.queue.is_empty:
+            try:
+                if player.queue.mode == wavelink.QueueMode.loop:
+                    logging.debug("Looping current track.")
+                    await player.play(payload.track)
+                    return
+
+                if player.queue.mode == wavelink.QueueMode.loop_all and player.queue.is_empty:
+                    logging.debug("Looping entire queue.")
+                    # Refill the queue with the original tracks if empty
+                    if not hasattr(player.queue, 'original_tracks') or not player.queue.original_tracks:
+                        player.queue.original_tracks = player.queue.history.copy()
+                    for track in player.queue.original_tracks:
+                        player.queue.put(track)
+
                 next_track = player.queue.get()
                 logging.debug(f"Playing next track: {next_track.title}")
-                await player.play(next_track)  # Play the next track
+                await player.play(next_track)
 
                 # Retrieve the requester ID
                 requester_id = getattr(next_track.extras, 'requester_id', None)
@@ -374,8 +387,8 @@ class MusicCog(commands.Cog):
                     channel = self.bot.get_channel(player.interaction_channel_id)
                     if channel:
                         player.now_playing_message = await channel.send(embed=embed)
-            else:
-                # Update the embed to reflect that nothing is playing
+            except wavelink.QueueEmpty:
+                logging.debug("Queue is empty and no looping mode is active.")
                 embed = discord.Embed(
                     title="🎵 Nothing is Playing 🎵",
                     description=(
@@ -810,8 +823,8 @@ class MusicCog(commands.Cog):
             await interaction.response.send_message("You must be in a voice channel to use this command.",
                                                     ephemeral=True)
             return
-        player = interaction.guild.voice_client
 
+        player = interaction.guild.voice_client
         if not player:
             await interaction.response.send_message("Not connected to a voice channel.", ephemeral=True)
             return
@@ -828,30 +841,45 @@ class MusicCog(commands.Cog):
     async def autoplay_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         await self.error_handler(interaction, error)
 
-    # Command to toggle the loop mode on the player
     @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name='loop', description='Toggle loop mode for the current track or queue')
-    async def loop(self, interaction: discord.Interaction):
-        player: wavelink.Player = interaction.guild.voice_client
-
-        if not player or not wavelink.Player.playing:
-            await interaction.response.send_message("No active music player or nothing is currently playing.",
+    @app_commands.describe(mode="Select loop mode.")
+    @app_commands.choices(mode=[
+        app_commands.Choice(name="Normal", value="normal"),
+        app_commands.Choice(name="Loop Song", value="loop"),
+        app_commands.Choice(name="Loop Queue", value="loop_all")
+    ])
+    async def loop(self, interaction: discord.Interaction, mode: app_commands.Choice[str]):
+        if not await self.user_in_voice(interaction):
+            await interaction.response.send_message("You must be in a voice channel to use this command.",
                                                     ephemeral=True)
             return
 
-        # Toggle between normal and loop mode
-        current_mode = player.queue.mode
-        if current_mode == wavelink.QueueMode.loop:
-            new_mode = wavelink.QueueMode.normal
-        else:
-            new_mode = wavelink.QueueMode.loop
+        player = interaction.guild.voice_client
+        if not player:
+            await interaction.response.send_message("I'm not connected to a voice channel.", ephemeral=True)
+            return
 
-        # Set the new mode
-        player.queue.mode = new_mode
+        if not wavelink.Player.playing:
+            await interaction.response.send_message("No music is currently playing.", ephemeral=True)
+            return
+
+        # Defer the interaction response to avoid timeout
+        await interaction.response.defer(ephemeral=False)
+
+        # Set the loop mode based on user input
+        if mode.value == "normal":
+            player.queue.mode = wavelink.QueueMode.normal
+            mode_description = "normal (no looping)"
+        elif mode.value == "loop":
+            player.queue.mode = wavelink.QueueMode.loop
+            mode_description = "looping current track"
+        elif mode.value == "loop_all":
+            player.queue.mode = wavelink.QueueMode.loop_all
+            mode_description = "looping entire queue"
 
         # Send a response back to the user
-        mode_description = "normal (no looping)" if new_mode == wavelink.QueueMode.normal else "looping current track"
-        await interaction.response.send_message(f"Queue mode set to {mode_description}.", ephemeral=False)
+        await interaction.followup.send(f"Queue mode set to {mode_description}.", ephemeral=False)
 
     # Handles command execution errors and delegates to the error_handler
     @loop.error
@@ -948,7 +976,8 @@ class MusicCog(commands.Cog):
             else:
                 # Note: search_result is initialized as a list, so we extract the first playable, the searched song.
                 search_result = search_result[0]
-                result = await db.submit_wonder_trade(search_result.identifier, search_result.title, search_result.author, search_result.length, search_result.uri,
+                result = await db.submit_wonder_trade(search_result.identifier, search_result.title,
+                                                      search_result.author, search_result.length, search_result.uri,
                                                       interaction.user.id, note)
                 # Output the result to the user.
                 print("Wondertrade creation result:", result)
@@ -1208,15 +1237,23 @@ class MusicButtons(ui.View):
             await interaction.response.send_message("You must be in a voice channel to use this command.",
                                                     ephemeral=True)
             return
-        current_mode = self.player.queue.mode
-        if current_mode == wavelink.QueueMode.loop:
-            self.player.queue.mode = wavelink.QueueMode.normal
+
+        player = interaction.guild.voice_client
+        current_mode = player.queue.mode
+
+        if current_mode == wavelink.QueueMode.normal:
+            player.queue.mode = wavelink.QueueMode.loop
+            button.label = "LOOP ALL"
+            response = "Looping current track enabled."
+        elif current_mode == wavelink.QueueMode.loop:
+            player.queue.mode = wavelink.QueueMode.loop_all
+            button.label = "NORMAL"
+            response = "Looping all tracks enabled."
+        elif current_mode == wavelink.QueueMode.loop_all:
+            player.queue.mode = wavelink.QueueMode.normal
             button.label = "LOOP"
             response = "Looping disabled."
-        else:
-            self.player.queue.mode = wavelink.QueueMode.loop
-            button.label = "NORMAL"
-            response = "Looping enabled."
+
         await interaction.response.edit_message(view=self)
         await interaction.followup.send(response, ephemeral=True)
 
