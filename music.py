@@ -545,6 +545,9 @@ class MusicCog(commands.Cog):
             if not player.playing and not player.paused:
                 next_track = player.queue.get()
                 await player.play(next_track)
+                # Send a follow-up message indicating the new song being played
+                await interaction.followup.send(f"Now playing: {next_track.title}", ephemeral=False)
+
             else:
                 await interaction.followup.send(added_tracks_info, ephemeral=False)
 
