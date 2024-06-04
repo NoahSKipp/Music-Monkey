@@ -4,21 +4,27 @@
 # Created on: 21.04.2024                    #
 # ========================================= #
 
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv('tokens.env')
+
 # Discord Bot Token
-TOKEN = 'MTIzNzc2OTE0MTkxNDY5Nzc0OQ.GRXWxx.KREMetj6fWNc8JzxJgrppfGhqw7L23GNj8plmU'
+TOKEN = os.getenv('DISCORD_TOKEN')
 
 # Discord Bot Application ID
-APPLICATION_ID = '1237769141914697749'
+APPLICATION_ID = os.getenv('DISCORD_APPLICATION_ID')
 
 # Gemini API Key
-GEMINI = "AIzaSyDOkobbmuDYQSuomxs4syj3aEcaghP5eNs"
+GEMINI = os.getenv('GEMINI_API_KEY')
 
 # Lavalink Node Variables
-LAVALINK_HOST = "n1.ll.darrennathanael.com"
-LAVALINK_PASSWORD = "glasshost1984"
-LAVALINK_PORT = 2269
+LAVALINK_HOST = os.getenv('LAVALINK_HOST')
+LAVALINK_PASSWORD = os.getenv('LAVALINK_PASSWORD')
+LAVALINK_PORT = (os.getenv('LAVALINK_PORT'))
 
 # Lavalink Node 2 Variables
-LAVALINK_HOST2 = "lavalink.rudracloud.com"
-LAVALINK_PASSWORD2 = "RudraCloud.com"
-LAVALINK_PORT2 = 2333
+LAVALINK_HOST2 = os.getenv('LAVALINK_HOST2')
+LAVALINK_PASSWORD2 = os.getenv('LAVALINK_PASSWORD2')
+LAVALINK_PORT2 = (os.getenv('LAVALINK_PORT2'))
