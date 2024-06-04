@@ -44,7 +44,7 @@ For support and more detailed help, join our [Support Server](https://discord.gg
 
 ## Setting Up Music Monkey
 
-To set up and use Music Monkey on your own server, follow these steps:
+To set up and host Music Monkey yourself, follow these steps:
 
 1. **Clone the Repository:**
 ```git clone https://github.com/NoahSKipp/Music-Monkey.git```
