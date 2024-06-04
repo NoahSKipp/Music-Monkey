@@ -54,7 +54,7 @@ To set up and use Music Monkey on your own server, follow these steps:
 
 3. **Configuration:**
 
-   - Create a `.env` file in the root directory and add your environment variables in the following format:
+   - Create a `.env` file in the root directory and add the necessary environment variables:
 
      ```env
      # Discord Bot Token
@@ -75,13 +75,17 @@ To set up and use Music Monkey on your own server, follow these steps:
      LAVALINK_HOST2='your_second_lavalink_host'
      LAVALINK_PASSWORD2='your_second_lavalink_password'
      LAVALINK_PORT2=your_second_lavalink_port
+
+     # Database Login
+     MYSQL_USER='your_database_username'
+     MYSQL_PASSWORD='your_database_password'
      ```
    
    - If you want to use more/less than two Lavalink nodes, add them to the `.env` file accordingly.
   
    - If you're adding/removing nodes, modify the node pool in `main.py` accordingly.
 
-4. **Run the Bot:**
+5. **Run the Bot:**
 
    To start the bot, run the following command in your terminal from the root directory of the project, or simply run that file through your IDE:
 
