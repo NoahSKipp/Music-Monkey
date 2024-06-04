@@ -130,7 +130,7 @@ Music Monkey comes with a variety of commands to control music playback, manage 
 For support and more detailed help, join our [Support Server](https://discord.gg/kyamXgVU68).
 
 If you're facing any issues or would like to suggest a new feature, feel free to contact us on our support server using the designated channel.
-If you've encountered a bug, open an [issue]([https://discord.gg/kyamXgVU68](https://github.com/NoahSKipp/Music-Monkey/issues) or use our support server's designated channel.
+If you've encountered a bug, open an [issue](https://github.com/NoahSKipp/Music-Monkey/issues) or use our [support server](https://discord.gg/kyamXgVU68)'s designated channel.
 
 ## Authors
 
