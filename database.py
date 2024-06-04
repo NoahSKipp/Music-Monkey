@@ -5,12 +5,19 @@
 # ========================================= #
 
 import aiomysql
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from the .env file
+load_dotenv()
+
+# Define MySQL configuration
 
 MYSQL_CONFIG = {
     'host': 'mysql.db.bot-hosting.net',
     'port': 3306,
-    'user': 'u68136_arhT5YVMs1',
-    'password': '=OxP4plpddEllbs=Ekzh=yS@',
+    'user': os.getenv('MYSQL_USER'),
+    'password': os.getenv('MYSQL_PASSWORD'),
     'db': 's68136_MusicProfiles',
     'autocommit': True
 }
@@ -124,7 +131,8 @@ async def enter_guild(guild_id):
 async def enter_user(user_id, guild_id):
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
         async with conn.cursor(aiomysql.DictCursor) as cur:
-            await cur.execute("SELECT user_id, guild_id FROM users WHERE  user_id = %s AND guild_id = %s", (user_id, guild_id))
+            await cur.execute("SELECT user_id, guild_id FROM users WHERE  user_id = %s AND guild_id = %s",
+                              (user_id, guild_id))
             user = await cur.fetchall()
             if not user:
                 await cur.execute("INSERT INTO users (user_id, guild_id) VALUES (%s, %s)", (user_id, guild_id))
@@ -274,4 +282,3 @@ async def get_user_stats(user_id):
                 'total_songs_played': total_songs,
                 'total_hours_played': total_playtime
             }
-
