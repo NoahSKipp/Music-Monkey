@@ -1,0 +1,4 @@
+discord.py==2.3.2
+wavelink==3.3.0
+aiomysql==0.2.0
+google-generativeai==0.5.4
