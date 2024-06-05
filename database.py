@@ -69,18 +69,6 @@ async def setup_database():
             await conn.commit()
 
 
-# Returns every entry in the guilds table.
-# Sam's Note: I think this isn't actually being used for anything.
-async def fetch_all_guilds():
-    async with aiomysql.connect(**MYSQL_CONFIG) as conn:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
-            await cur.execute("SELECT guild_id, dj_only_enabled, dj_role_id FROM guilds")
-            rows = await cur.fetchall()
-            return {
-                row['guild_id']: {'dj_only_enabled': bool(row['dj_only_enabled']), 'dj_role_id': row['dj_role_id']}
-                for row in rows}
-
-
 # Returns the dj_only_enabled attribute of a given guild.
 async def get_dj_only_enabled(guild_id):
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:

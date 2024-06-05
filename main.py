@@ -41,11 +41,6 @@ class MusicMonkey(commands.Bot):
         # Set up the database.
         await database.setup_database()
 
-        # Load database settings on startup.
-        # Sam's note: Does this do anything?
-        # Sam's note on the note: I _really_ think this isn't ever used
-        self.guild_settings = await database.fetch_all_guilds()
-
         print("All commands synced successfully.")
 
     async def on_ready(self):
