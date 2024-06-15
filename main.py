@@ -24,7 +24,9 @@ class MusicMonkey(commands.Bot):
             wavelink.Node(identifier="MainMonkey", uri=f'http://{config.LAVALINK_HOST}:{config.LAVALINK_PORT}',
                           password=config.LAVALINK_PASSWORD),
             wavelink.Node(identifier="SecondaryMonkey", uri=f'http://{config.LAVALINK_HOST2}:{config.LAVALINK_PORT2}',
-                          password=config.LAVALINK_PASSWORD2)
+                          password=config.LAVALINK_PASSWORD2),
+            wavelink.Node(identifier="ThirdMonkey", uri=f'http://{config.LAVALINK_HOST3}:{config.LAVALINK_PORT3}',
+                          password=config.LAVALINK_PASSWORD3)
         ]
 
         # Connect to the defined Lavalink node.
