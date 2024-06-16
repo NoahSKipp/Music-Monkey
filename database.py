@@ -18,7 +18,7 @@ MYSQL_CONFIG = {
     'port': 3306,
     'user': os.getenv('MYSQL_USER'),
     'password': os.getenv('MYSQL_PASSWORD'),
-    'db': 's68136_MusicProfiles',
+    'db': 's90823_Testing',
     'autocommit': True
 }
 
@@ -32,6 +32,8 @@ async def setup_database():
                 guild_id BIGINT NOT NULL,
                 dj_only_enabled BOOLEAN DEFAULT 0,
                 dj_role_id BIGINT,
+                updates_enabled TINYINT DEFAULT 1,
+                updates_channel_id BIGINT,
                 PRIMARY KEY (guild_id)
             );
             CREATE TABLE IF NOT EXISTS songs (
@@ -270,3 +272,52 @@ async def get_user_stats(user_id):
                 'total_songs_played': total_songs,
                 'total_hours_played': total_playtime
             }
+
+
+# Sets the updates status of a given guild.
+async def set_updates_status(guild_id, status):
+    # Convert status to 0 or 1
+    if status == 'enable':
+        status_value = 1
+    elif status == 'disable':
+        status_value = 0
+    else:
+        raise ValueError("Invalid status value. Must be 'enable' or 'disable'.")
+
+    async with aiomysql.connect(**MYSQL_CONFIG) as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                'INSERT INTO guilds (guild_id, updates_enabled) VALUES (%s, %s) '
+                'ON DUPLICATE KEY UPDATE updates_enabled = %s',
+                (guild_id, status_value, status_value)
+            )
+            await conn.commit()
+
+
+# Gets the updates status of a given guild.
+async def get_updates_status(guild_id):
+    async with aiomysql.connect(**MYSQL_CONFIG) as conn:
+        async with conn.cursor() as cur:
+            await cur.execute('SELECT updates_enabled FROM guilds WHERE guild_id = %s', (guild_id,))
+            result = await cur.fetchone()
+            return result[0] if result is not None else 1  # Default to 1 (enabled) if not set
+
+
+# Sets the updates channel of a given guild.
+async def set_updates_channel(guild_id, channel_id):
+    async with aiomysql.connect(**MYSQL_CONFIG) as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                'INSERT INTO guilds (guild_id, updates_channel_id) VALUES (%s, %s) ON DUPLICATE KEY UPDATE '
+                'updates_channel_id = %s',
+                (guild_id, channel_id, channel_id))
+            await conn.commit()
+
+
+# Retrieves the updates channel of a given guild.
+async def get_updates_channel(guild_id):
+    async with aiomysql.connect(**MYSQL_CONFIG) as conn:
+        async with conn.cursor() as cur:
+            await cur.execute('SELECT updates_channel_id FROM guilds WHERE guild_id = %s', (guild_id,))
+            result = await cur.fetchone()
+            return result[0] if result else None

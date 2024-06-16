@@ -442,8 +442,14 @@ class MusicCog(commands.Cog):
 
     # Command to trigger the DJ-only playback mode
     @app_commands.command(name='dj', description='Toggle DJ-only command restrictions')
-    @commands.has_permissions(manage_roles=True)
     async def toggle_dj_mode(self, interaction: discord.Interaction):
+        if not interaction.user.guild_permissions.manage_roles:
+            await interaction.response.send_message(
+                "You do not have the required permissions to use this command.",
+                ephemeral=True
+            )
+            return
+
         guild_id = interaction.guild_id
         current_state = await db.get_dj_only_enabled(guild_id) or False
         new_state = not current_state

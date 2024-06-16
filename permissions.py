@@ -6,8 +6,14 @@
 
 from discord import Member
 
+
 def can_manage_roles(member: Member) -> bool:
     return member.guild_permissions.manage_roles
 
+
 def is_dj(member: Member) -> bool:
     return any(role.name == 'DJ' for role in member.roles)
+
+
+def can_use_updates_commands(member: Member) -> bool:
+    return can_manage_roles(member)
