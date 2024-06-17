@@ -16,7 +16,7 @@ import database
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-class MusicMonkey(commands.Bot):
+class MusicMonkey(commands.AutoShardedBot):  # Use AutoShardedBot for sharding support
     # Establishes connection to the node.
     async def setup_hook(self):
         # Define the Lavalink nodes
@@ -25,8 +25,6 @@ class MusicMonkey(commands.Bot):
                           password=config.LAVALINK_PASSWORD),
             wavelink.Node(identifier="SecondaryMonkey", uri=f'http://{config.LAVALINK_HOST2}:{config.LAVALINK_PORT2}',
                           password=config.LAVALINK_PASSWORD2),
-            wavelink.Node(identifier="ThirdMonkey", uri=f'http://{config.LAVALINK_HOST3}:{config.LAVALINK_PORT3}',
-                          password=config.LAVALINK_PASSWORD3)
         ]
 
         # Connect to the defined Lavalink node.
@@ -54,10 +52,9 @@ async def main():
     # Sets permissions for the bot.
     intents = discord.Intents.default()
     intents.members = True
-    intents.voice_states = True
 
-    # Instantiate the bot
-    bot = MusicMonkey(command_prefix='/', intents=intents)
+    # Instantiate the bot with 4 shards
+    bot = MusicMonkey(command_prefix='/', intents=intents, shard_count=4)
 
     # Start the bot
     await bot.start(config.TOKEN)
