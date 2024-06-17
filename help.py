@@ -108,7 +108,9 @@ class HelpCog(commands.Cog):
     def get_settings_commands(self):
         return ("**Settings and Configuration Commands:**\n"
                 "`/dj` - Toggle DJ-only command restrictions.\n"
-                "`/setdj [role]` - Set a DJ role for managing the bot.")
+                "`/setdj` - Set a DJ role for managing the bot.\n"
+                "`/updates [enable | disable]` - Toggle receiving bot announcements on or off.\n"
+                "`/updates_set` - Set the current channel to receive bot announcements.")
 
     def get_music_recommendations(self):
         return ("**Music Recommendations:**\n"
