@@ -138,3 +138,4 @@ class HelpCog(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(HelpCog(bot))
+

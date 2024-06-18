@@ -178,7 +178,7 @@ class MusicCog(commands.Cog):
                 # Ensure interaction_channel_id is correctly set in your player instance
                 text_channel = self.bot.get_channel(voice_state.interaction_channel_id)
 
-                # If the text channel exists, send an inactivity message
+                # Send inactivity message if possible
                 if text_channel:
                     await self.send_inactivity_message(text_channel)
 
@@ -241,31 +241,39 @@ class MusicCog(commands.Cog):
 
     # Sets up an inactivity message
     async def send_inactivity_message(self, channel: discord.TextChannel):
-        embed = discord.Embed(
-            title="🎵 Music Monkey Left Due to Inactivity 🎵",
-            description=(
-                "Oops, I left the voice channel due to inactivity. 😴\n"
-                "Don't worry, though! I'm always ready to swing back into action when you need me. "
-                "Just start playing another song, and I'll be there with you! 🎶\n\n"
-            ),
-            color=discord.Color.dark_red()
-        )
-
-        await channel.send(embed=embed)
+        try:
+            embed = discord.Embed(
+                title="🎵 Music Monkey Left Due to Inactivity 🎵",
+                description=(
+                    "Oops, I left the voice channel due to inactivity. 😴\n"
+                    "Don't worry, though! I'm always ready to swing back into action when you need me. "
+                    "Just start playing another song, and I'll be there with you! 🎶\n\n"
+                ),
+                color=discord.Color.dark_red()
+            )
+            await channel.send(embed=embed)
+        except discord.errors.Forbidden as e:
+            logging.error(f"Failed to send inactivity message due to missing permissions: {e}")
+        except Exception as e:
+            logging.error(f"Unexpected error when sending inactivity message: {e}")
 
     # Stop the playback, disconnects from the voice channel and cleans the "Now Playing" message
     async def disconnect_and_cleanup(self, player: wavelink.Player):
-        await player.stop()
-        await player.disconnect()
-        if hasattr(player, 'now_playing_message') and player.now_playing_message:
-            try:
-                await player.now_playing_message.delete()
-            except discord.NotFound:
-                pass
-            except discord.HTTPException as e:
-                logging.error(f"Failed to delete now playing message: {e}")
-        player.now_playing_message = None
-        player.was_forcefully_stopped = False  # Reset the flag after cleanup
+        try:
+            await player.stop()
+            await player.disconnect()
+            if hasattr(player, 'now_playing_message') and player.now_playing_message:
+                try:
+                    await player.now_playing_message.delete()
+                except discord.NotFound:
+                    pass
+                except discord.HTTPException as e:
+                    logging.error(f"Failed to delete now playing message: {e}")
+            player.now_playing_message = None
+        except Exception as e:
+            logging.error(f"Error during disconnect and cleanup: {e}")
+        finally:
+            player.was_forcefully_stopped = False  # Reset the flag after cleanup
 
     # Cog listener to react to a track starting and grab the info necessary for further functions
     @commands.Cog.listener()
