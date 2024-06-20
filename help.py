@@ -129,7 +129,7 @@ class HelpCog(commands.Cog):
                 "from the developer and the community.")
 
     def create_support_button(self):
-        return ui.Button(label="Support", url="https://discord.gg/kyamXgVU68", style=ButtonStyle.link)
+        return ui.Button(label="Support", url="https://discord.gg/6WqKtrXjhn", style=ButtonStyle.link)
 
     def create_invite_button(self):
         return ui.Button(label="Invite me!", url="https://discord.com/oauth2/authorize?client_id=1228071177239531620",
