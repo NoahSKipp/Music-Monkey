@@ -442,7 +442,7 @@ class MusicCog(commands.Cog):
         queue_slice = list(player.queue)[start_index:end_index]
 
         queue_description = "\n".join(
-            f"{idx + 1 + start_index}. **{track.title}** by `{track.author}` ({format_duration(track.length)})"
+            f"{idx + 1 + start_index}. **{track.title}** by `{track.author}` ({format_duration(track.length)}) - Requested by <@{track.extras.requester_id}>"
             for idx, track in enumerate(queue_slice)
         )
         embed = discord.Embed(title=f'Queue - Page {page} of {total_pages}', description=queue_description,
