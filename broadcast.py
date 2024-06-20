@@ -1,9 +1,9 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
+import asyncio  # Import asyncio for sleep functionality
 import database  # Assuming the database module handles MySQL interactions
 from permissions import can_use_updates_commands
-
 
 class BroadcastCog(commands.Cog):
     def __init__(self, bot):
@@ -37,6 +37,8 @@ class BroadcastCog(commands.Cog):
                 if channel:
                     try:
                         await channel.send(embed=embed)
+                        print(f"Message sent successfully to {guild.name}")
+                        await asyncio.sleep(1)  # Delay to prevent hitting rate limits
                         continue
                     except discord.Forbidden:
                         print(f"Permission denied to send message to {channel.name} in {guild.name}")
@@ -49,6 +51,8 @@ class BroadcastCog(commands.Cog):
                 if channel.name in channel_names:
                     try:
                         await channel.send(embed=embed)
+                        print(f"Message sent successfully to {guild.name}")
+                        await asyncio.sleep(1)  # Delay to prevent hitting rate limits
                         break
                     except discord.Forbidden:
                         print(f"Permission denied to send message to {channel.name} in {guild.name}")
