@@ -170,22 +170,28 @@ class MusicCog(commands.Cog):
 
         # Check if the bot is alone in the voice channel
         if len(voice_state.channel.members) == 1:
-            # Wait for 10 seconds to confirm inactivity
-            await asyncio.sleep(10)
-            # Check again if the bot is still alone in the channel
-            if len(voice_state.channel.members) == 1:
-                # Retrieve the text channel to send the inactivity message
-                # Ensure interaction_channel_id is correctly set in your player instance
-                text_channel = self.bot.get_channel(voice_state.interaction_channel_id)
+            try:
+                # Wait for 10 seconds to confirm inactivity
+                await asyncio.sleep(10)
 
-                # Send inactivity message if possible
-                if text_channel:
-                    await self.send_inactivity_message(text_channel)
+                # Check again if the bot is still alone in the channel
+                if len(voice_state.channel.members) == 1:
+                    # Retrieve the text channel to send the inactivity message
+                    # Ensure interaction_channel_id is correctly set in your player instance
+                    text_channel = self.bot.get_channel(voice_state.interaction_channel_id)
 
-                # Disconnect the bot and clean up
-                logging.debug("Setting was_forcefully_stopped flag to True for inactivity.")
-                voice_state.was_forcefully_stopped = True  # Set the flag before disconnecting
-                await self.disconnect_and_cleanup(voice_state)
+                    # Send inactivity message if possible
+                    if text_channel:
+                        await self.send_inactivity_message(text_channel)
+
+                    # Disconnect the bot and clean up
+                    logging.debug("Setting was_forcefully_stopped flag to True for inactivity.")
+                    voice_state.was_forcefully_stopped = True  # Set the flag before disconnecting
+                    await self.disconnect_and_cleanup(voice_state)
+
+            except asyncio.CancelledError:
+                logging.warning("Inactivity check was cancelled.")
+                # Handle the cancellation gracefully
 
     # Checks for the user and the associated voice channel
     async def user_in_voice(self, interaction):
@@ -229,13 +235,14 @@ class MusicCog(commands.Cog):
         print(f'Node {payload.node.identifier} is ready!')
 
     # Cog listener to check if the player is currently inactive
+    @commands.Cog.listener()
     async def on_wavelink_inactive_player(self, player: wavelink.Player):
         # Ensure that the player is still connected before sending the message and disconnecting
         if player and hasattr(player, 'interaction_channel_id'):
             channel = self.bot.get_channel(player.interaction_channel_id)
             if channel:
                 await self.send_inactivity_message(channel)
-        logging.debug("Setting was_forcefully_stopped flag to True for inactivity.")
+        print("Setting was_forcefully_stopped flag to True for inactivity.")
         player.was_forcefully_stopped = True  # Set the flag before disconnecting
         await self.disconnect_and_cleanup(player)
 
@@ -279,8 +286,8 @@ class MusicCog(commands.Cog):
     @commands.Cog.listener()
     async def on_wavelink_track_start(self, payload: wavelink.TrackStartEventPayload):
         player: wavelink.Player = payload.player
+        player.inactive_timeout = 10
         track: wavelink.Playable = payload.track
-        player.inactive_timeout = 30
 
         # Attempt to fetch the requester user object
         requester_id = getattr(track.extras, 'requester_id', None)
@@ -336,7 +343,6 @@ class MusicCog(commands.Cog):
     @commands.Cog.listener()
     async def on_wavelink_track_end(self, payload: wavelink.TrackEndEventPayload):
         player: wavelink.Player = payload.player
-        logging.debug(f"Track ended: {payload.track.title}")
 
         if player:
             # Check if the player was manually stopped or disconnected due to inactivity
@@ -495,8 +501,13 @@ class MusicCog(commands.Cog):
     @app_commands.command(name='play', description='Play or queue a song from a URL or search term')
     @app_commands.describe(query='URL or search term of the song to play')
     async def play(self, interaction: Interaction, query: str):
-        await interaction.response.defer(ephemeral=False)
-        await self.play_song(interaction, query)
+        try:
+            await interaction.response.defer(ephemeral=False)
+            await self.play_song(interaction, query)
+        except discord.errors.NotFound:
+            logging.error("Interaction not found or expired.")
+        except Exception as e:
+            logging.error(f"Unexpected error: {e}")
 
     # Handles command execution errors and delegates to the error_handler
     @play.error
@@ -509,71 +520,60 @@ class MusicCog(commands.Cog):
 
     # Finds and plays a song based off of the given query.
     async def play_song(self, interaction: Interaction, query: str):
-        # Check if the vote reminder should be sent for this guild
-        await self.vote_reminder(interaction)
-
-        # Attempt to search for the query
         try:
+            await self.vote_reminder(interaction)
             results = await wavelink.Playable.search(query)
-            print(results)
-            # If the query yields no results, send a message
             if not results:
                 await interaction.followup.send('No tracks found with that query.', ephemeral=True)
                 return
 
-            # If the user sending the command is not in a voice channel, sends a message
             channel = interaction.user.voice.channel if interaction.user and interaction.user.voice else None
             if not channel:
                 await interaction.followup.send("You must be in a voice channel to play music.", ephemeral=True)
                 return
 
-            # If no node is currently available, sends a message
             node = wavelink.Pool.get_node()
             if node is None:
                 await interaction.followup.send("No node available. Please try again later.", ephemeral=True)
                 return
 
-            # If no player exists in the voice channel, connect one
             player = interaction.guild.voice_client
             if not player:
                 player = await channel.connect(cls=wavelink.Player)
                 player.guild_id = interaction.guild_id
                 player.interaction_channel_id = interaction.channel_id
 
-            # If query is a playlist, add all tracks from the playlist and send a message
             if isinstance(results, wavelink.Playlist):
                 tracks = results.tracks
                 added_tracks_info = f"Added {len(tracks)} tracks from the playlist to the queue."
                 for track in tracks:
                     track.extras.requester_id = interaction.user.id
                     player.queue.put(track)
-
-            # If query is not a playlist, queue the first result and send a message
             else:
                 track = results[0]
                 track.extras.requester_id = interaction.user.id
                 player.queue.put(track)
                 added_tracks_info = f"Added to queue: {track.title}"
 
-            # If the player isn't currently playing or paused, move onto the next track
             if not player.playing and not player.paused:
                 next_track = player.queue.get()
                 await player.play(next_track)
-                # Send a follow-up message indicating the new song being played
                 await interaction.followup.send(f"Now playing: {next_track.title}", ephemeral=False)
-
             else:
                 await interaction.followup.send(added_tracks_info, ephemeral=False)
 
-            # Increment the play count for the user in the database
             await db.enter_song(player.current.identifier, player.current.title, player.current.author,
                                 player.current.length, player.current.uri)
             await db.increment_plays(interaction.user.id, player.current.identifier, interaction.guild_id)
 
-        # Otherwise, send an error message
+        except discord.errors.NotFound:
+            logging.error("Interaction not found or expired.")
         except Exception as e:
             logging.error(f"Error processing the play command: {e}")
-            await interaction.followup.send('An error occurred while trying to play the track.', ephemeral=True)
+            try:
+                await interaction.followup.send('An error occurred while trying to play the track.', ephemeral=True)
+            except discord.errors.NotFound:
+                logging.error("Failed to send follow-up message: Interaction not found or expired.")
 
     # Command to skip the current song
     @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
