@@ -1,6 +1,7 @@
 [![GitHub Profile](https://img.shields.io/badge/NoahSKipp-GitHub-blue?logo=github)](https://github.com/NoahSKipp)
 [![GitHub Profile](https://img.shields.io/badge/iiPaper-GitHub-blue?logo=github)](https://github.com/iiPaper)
 [![License](https://img.shields.io/badge/Creative%20Commons%20License-CC%20BY--NC%204.0-information)](https://github.com/NoahSKipp/Music-Monkey/blob/main/LICENSE)
+[![Website](https://img.shields.io/badge/Website-getmusicmonkey.com-blue?style=flat-square&logo=internet-explorer)](https://getmusicmonkey.com)
 [![Discord](https://img.shields.io/discord/136026412669861888?color=7289DA&label=Discord&logo=discord)](https://discord.gg/kyamXgVU68)
 [![Invite Music Monkey](https://img.shields.io/badge/Invite-Music%20Monkey-blue.svg?style=flat-square)](https://discord.com/oauth2/authorize?client_id=1228071177239531620)
 [![Latest Release](https://img.shields.io/github/v/release/NoahSKipp/music-monkey?label=Latest%20Release&logo=github)](https://github.com/NoahSKipp/music-monkey/releases/latest)
