@@ -136,7 +136,7 @@ class MusicCog(commands.Cog):
             title="Support Us by Voting!",
             description="🌟 Your votes help keep the bot free and continuously improving. Please take a moment to "
                         "support us!",
-            color=0x00ff00
+            color=discord.Color.green()
         )
         embed.add_field(name="Vote Here", value="[Vote on Top.gg](https://top.gg/bot/1228071177239531620/vote)")
         embed.set_thumbnail(url=interaction.client.user.avatar.url)
@@ -545,22 +545,31 @@ class MusicCog(commands.Cog):
 
             if isinstance(results, wavelink.Playlist):
                 tracks = results.tracks
-                added_tracks_info = f"Added {len(tracks)} tracks from the playlist to the queue."
+                embed = Embed(
+                    title="**Added to Queue**",
+                    description=f"{len(tracks)} tracks from the playlist",
+                    color=discord.Color.dark_red()
+                )
+                embed.set_footer(text=f"Queue length: {len(player.queue) + len(tracks)}")
                 for track in tracks:
                     track.extras.requester_id = interaction.user.id
                     player.queue.put(track)
+                await interaction.followup.send(embed=embed, ephemeral=False)
             else:
                 track = results[0]
                 track.extras.requester_id = interaction.user.id
                 player.queue.put(track)
-                added_tracks_info = f"Added to queue: {track.title}"
-                await interaction.followup.send(added_tracks_info, ephemeral=False)
+                embed = Embed(
+                    title="**Added to Queue**",
+                    description=f"{track.title} by {track.author}",
+                    color=discord.Color.dark_red()
+                )
+                embed.set_footer(text=f"Queue length: {len(player.queue)}")
+                await interaction.followup.send(embed=embed, ephemeral=False)
 
             if not player.playing and not player.paused:
                 next_track = player.queue.get()
                 await player.play(next_track)
-            else:
-                await interaction.followup.send(added_tracks_info, ephemeral=False)
 
             await db.enter_song(player.current.identifier, player.current.title, player.current.author,
                                 player.current.length, player.current.uri)
