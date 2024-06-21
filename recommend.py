@@ -15,6 +15,7 @@ import wavelink
 # API key for Google Gemini
 genai.configure(api_key=config.GEMINI)
 
+
 class RecommendCog(commands.Cog):
     def __init__(self, bot):
         super().__init__()
@@ -23,9 +24,10 @@ class RecommendCog(commands.Cog):
 
     @app_commands.command(name='recommend', description='Get song recommendations based on the current queue.')
     async def recommend(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)  # This will signal to Discord that more time is needed
         player = interaction.guild.voice_client
         if not player or not wavelink.Player.connected or wavelink.Player.current is None:
-            await interaction.response.send_message("No music is currently playing.", ephemeral=True)
+            await interaction.followup.send("No music is currently playing.", ephemeral=True)
             return
 
         current_track = player.current.title if player.current else 'No track currently playing'
@@ -48,7 +50,9 @@ class RecommendCog(commands.Cog):
         response = convo.last.text
 
         view = SelectSongsView(response, player)
-        await interaction.response.send_message(f"Based on your current queue, here are some song recommendations:\n{response}", view=view, ephemeral=True)
+        await interaction.followup.send(f"Based on your current queue, here are some song recommendations:\n{response}",
+                                        view=view, ephemeral=True)
+
 
 class SelectSongsView(discord.ui.View):
     def __init__(self, recommendations, player):
@@ -62,9 +66,11 @@ class SelectSongsView(discord.ui.View):
                 button_label = song.strip().split('. ', 1)[1] if '. ' in song else song.strip()  # Remove the numbering
                 self.add_item(SongButton(label=button_label, player=self.player, song_query=button_label))
 
+
 class SongButton(discord.ui.Button):
     def __init__(self, label, player, song_query):
-        super().__init__(style=discord.ButtonStyle.primary, label=label[:80], custom_id=label[:80])  # Limit label to 80 characters
+        super().__init__(style=discord.ButtonStyle.primary, label=label[:80],
+                         custom_id=label[:80])  # Limit label to 80 characters
         self.song_query = song_query
         self.player = player
 
