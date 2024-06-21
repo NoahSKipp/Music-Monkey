@@ -61,6 +61,7 @@ class HelpCog(commands.Cog):
         view.add_item(select)
         view.add_item(self.create_support_button())
         view.add_item(self.create_invite_button())
+        view.add_item(self.create_website_button())
         return view
 
     async def select_callback(self, interaction: discord.Interaction):
@@ -134,6 +135,9 @@ class HelpCog(commands.Cog):
     def create_invite_button(self):
         return ui.Button(label="Invite me!", url="https://discord.com/oauth2/authorize?client_id=1228071177239531620",
                          style=ButtonStyle.link)
+
+    def create_website_button(self):
+        return ui.Button(label="Website", url="https://getmusicmonkey.com", style=ButtonStyle.link)
 
 
 async def setup(bot):
