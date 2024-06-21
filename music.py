@@ -513,20 +513,27 @@ class MusicCog(commands.Cog):
     async def play(self, interaction: Interaction, query: str):
         try:
             await interaction.response.defer(ephemeral=False)
+
+            # Check if the bot is not connected to any voice channel
+            if not interaction.guild.voice_client:
+                # Ensure the user is in a voice channel
+                if not interaction.user.voice or not interaction.user.voice.channel:
+                    await interaction.followup.send("You must be in a voice channel to use this command.",
+                                                    ephemeral=True)
+                    return
+            else:
+                # Ensure the user is in the same voice channel as the bot
+                if not await self.user_in_voice(interaction):
+                    await interaction.followup.send(
+                        "You must be in the same voice channel as the bot to use this command.", ephemeral=True)
+                    return
+
+            # Call the play_song method to handle the rest
             await self.play_song(interaction, query)
         except discord.errors.NotFound:
             logging.error("Interaction not found or expired.")
         except Exception as e:
             logging.error(f"Unexpected error: {e}")
-
-    # Handles command execution errors and delegates to the error_handler
-    @play.error
-    async def play_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
-        if not await self.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in a voice channel to use this command.",
-                                                    ephemeral=True)
-            return
-        await self.error_handler(interaction, error)
 
     # Finds and plays a song based off of the given query.
     async def play_song(self, interaction: Interaction, query: str):
@@ -600,7 +607,7 @@ class MusicCog(commands.Cog):
     async def skip(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in a voice channel to use this command.", ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command..", ephemeral=True)
             return
 
         player: wavelink.Player = interaction.guild.voice_client
@@ -630,7 +637,7 @@ class MusicCog(commands.Cog):
     async def pause(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in a voice channel to use this command.", ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command..", ephemeral=True)
             return
 
         player = interaction.guild.voice_client
@@ -654,7 +661,7 @@ class MusicCog(commands.Cog):
     async def resume(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in a voice channel to use this command.", ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command..", ephemeral=True)
             return
 
         player = interaction.guild.voice_client
@@ -680,7 +687,7 @@ class MusicCog(commands.Cog):
         logging.debug("Stop command received.")
         await interaction.response.defer(ephemeral=True)  # Signal to Discord that more time is needed to process
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in a voice channel to use this command.", ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command..", ephemeral=True)
             return
 
         player = interaction.guild.voice_client
@@ -713,7 +720,7 @@ class MusicCog(commands.Cog):
     async def clear(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in a voice channel to use this command.", ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command..", ephemeral=True)
             return
 
         player = interaction.guild.voice_client
@@ -735,7 +742,7 @@ class MusicCog(commands.Cog):
     async def cleargone(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=False)
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in a voice channel to use this command.", ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command..", ephemeral=True)
             return
 
         player = interaction.guild.voice_client
@@ -769,7 +776,7 @@ class MusicCog(commands.Cog):
         await interaction.response.defer(ephemeral=False)
 
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in a voice channel to use this command.", ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command..", ephemeral=True)
             return
 
         player = interaction.guild.voice_client
@@ -811,7 +818,7 @@ class MusicCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in a voice channel to use this command.", ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command..", ephemeral=True)
             return
 
         player = interaction.guild.voice_client
@@ -842,7 +849,7 @@ class MusicCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in a voice channel to use this command.", ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command..", ephemeral=True)
             return
 
         player = interaction.guild.voice_client
@@ -875,7 +882,7 @@ class MusicCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in a voice channel to use this command.", ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command..", ephemeral=True)
             return
 
         player = interaction.guild.voice_client
@@ -908,7 +915,7 @@ class MusicCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in a voice channel to use this command.", ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command..", ephemeral=True)
             return
 
         player = interaction.guild.voice_client
@@ -947,7 +954,7 @@ class MusicCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in a voice channel to use this command.", ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command..", ephemeral=True)
             return
 
         # Validate and parse the time format
@@ -1030,7 +1037,6 @@ class MusicCog(commands.Cog):
                            note='A small (up to 60 characters) message to go with your recommendation!')
     async def wondertrade(self, interaction: Interaction, query: str, note: str):
         await interaction.response.defer(ephemeral=True)
-        # Displays a "Bot is thinking" message so that the Discord bot request does not timeout.
         # Try to get a song from the extracted query to send as a wondertrade.
         try:
             # Searches for a song with the user's provided query.
@@ -1071,37 +1077,61 @@ class MusicCog(commands.Cog):
     @discord.app_commands.checks.cooldown(1, 1800)  # 1 use every 30 seconds
     @app_commands.command(name='receive', description='Receive a song recommendation from anyone else using the bot!')
     async def receive(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer(ephemeral=False)
 
-        if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in a voice channel to use this command.", ephemeral=True)
+        channel = interaction.user.voice.channel if interaction.user and interaction.user.voice else None
+        if not channel:
+            await interaction.followup.send("You must be in the same voice channel as me to use this command..", ephemeral=True)
             return
 
+        player = interaction.guild.voice_client
+
+        if player:
+            if not await self.user_in_voice(interaction):
+                await interaction.followup.send("You must be in the same voice channel as the bot to use this command.",
+                                                ephemeral=True)
+                return
+        else:
+            try:
+                player = await channel.connect(cls=wavelink.Player)
+                player.guild_id = interaction.guild_id
+                player.interaction_channel_id = interaction.channel_id
+            except Exception as e:
+                logging.error(f"Error connecting to voice channel: {e}")
+                await interaction.followup.send("Failed to connect to the voice channel.", ephemeral=True)
+                return
+
         try:
-            uri, note = await db.receive_wonder_trade(interaction.user.id)
-            logging.info(f"Received wonder trade result: {uri}, {note}")
+            response = await db.receive_wonder_trade(interaction.user.id)
 
-            if not uri.startswith('_'):
-                if note:
-                    embed = discord.Embed(
-                        title="You've received a song recommendation note!",
-                        description=f"Oh! It seems the person who recommended this song left you a note!\n||{note}||",
-                        color=discord.Color.blue()
-                    )
-                    embed.set_footer(text="Messages aren't monitored or filtered. View at your own discretion.")
-                    await interaction.followup.send(embed=embed)
+            if isinstance(response, tuple):
+                uri, note = response
+                logging.info(f"Received wonder trade result: {uri}, {note}")
 
-                await self.play_song(interaction, uri)
-                await db.delete_wonder_trade(uri)
+                if not uri.startswith('_'):
+                    if note:
+                        embed = discord.Embed(
+                            title="You've received a song recommendation note!",
+                            description=f"Oh! It seems the person who recommended this song left you a note!\n||{note}||",
+                            color=discord.Color.blue()
+                        )
+                        embed.set_footer(text="Messages aren't monitored or filtered. View at your own discretion.")
+                        await interaction.followup.send(embed=embed)
+
+                    await self.play_song(interaction, uri)
+                    await db.delete_wonder_trade(uri)
+
+                else:
+                    uri = uri.lstrip('_')
+                    await interaction.followup.send(uri)
 
             else:
-                uri = uri.lstrip('_')
-                await interaction.followup.send(uri)
+                await interaction.followup.send(response)
 
         except Exception as e:
             logging.error(f"Error processing the receive command: {e}")
             await interaction.followup.send('An error occurred when trying to receive the wonder trade.',
-                                            ephemeral=True)
+                                            ephemeral=False)
 
     # Handles command execution errors and delegates to the wondertrade_specific_error_handler
     @receive.error
@@ -1257,7 +1287,7 @@ class MusicButtons(ui.View):
     @ui.button(label='VOL +', style=ButtonStyle.green, custom_id='vol_up_button')
     async def volume_up(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in a voice channel to use this command.",
+            await interaction.response.send_message("You must be in the same voice channel as me to use this command..",
                                                     ephemeral=True)
             return
         new_volume = min(self.player.volume + 10, 100)  # Volume should not exceed 100
@@ -1268,7 +1298,7 @@ class MusicButtons(ui.View):
     @ui.button(label='PAUSE', style=ButtonStyle.blurple, custom_id='pause_button')
     async def pause(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in a voice channel to use this command.",
+            await interaction.response.send_message("You must be in the same voice channel as me to use this command..",
                                                     ephemeral=True)
             return
         # Check the current paused state directly from the player and toggle it
@@ -1286,7 +1316,7 @@ class MusicButtons(ui.View):
     @ui.button(label='VOL -', style=ButtonStyle.green, custom_id='vol_down_button')
     async def volume_down(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in a voice channel to use this command.",
+            await interaction.response.send_message("You must be in the same voice channel as me to use this command..",
                                                     ephemeral=True)
             return
         new_volume = max(self.player.volume - 10, 0)  # Volume should not go below 0
@@ -1297,7 +1327,7 @@ class MusicButtons(ui.View):
     @ui.button(label='SKIP', style=ButtonStyle.green, custom_id='skip_button')
     async def skip(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in a voice channel to use this command.",
+            await interaction.response.send_message("You must be in the same voice channel as me to use this command..",
                                                     ephemeral=True)
             return
         await self.player.skip()
@@ -1307,7 +1337,7 @@ class MusicButtons(ui.View):
     @ui.button(label='LOOP', style=ButtonStyle.green, custom_id='loop_button')
     async def toggle_loop(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in a voice channel to use this command.",
+            await interaction.response.send_message("You must be in the same voice channel as me to use this command..",
                                                     ephemeral=True)
             return
 
@@ -1334,7 +1364,7 @@ class MusicButtons(ui.View):
     @ui.button(label='REWIND', style=ButtonStyle.green, custom_id='rewind_button')
     async def rewind(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in a voice channel to use this command.",
+            await interaction.response.send_message("You must be in the same voice channel as me to use this command..",
                                                     ephemeral=True)
             return
         # Calculate the new position, ensuring it does not fall below zero
@@ -1346,7 +1376,7 @@ class MusicButtons(ui.View):
     @ui.button(label='STOP', style=ButtonStyle.red, custom_id='stop_button')
     async def stop_music(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in a voice channel to use this command.",
+            await interaction.response.send_message("You must be in the same voice channel as me to use this command..",
                                                     ephemeral=True)
             return
 
@@ -1380,7 +1410,7 @@ class MusicButtons(ui.View):
     @ui.button(label='FORWARD', style=ButtonStyle.green, custom_id='forward_button')
     async def forward(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in a voice channel to use this command.",
+            await interaction.response.send_message("You must be in the same voice channel as me to use this command..",
                                                     ephemeral=True)
             return
         # Calculate the new position, ensuring it does not exceed the track's duration
@@ -1392,7 +1422,7 @@ class MusicButtons(ui.View):
     @ui.button(label='AUTOPLAY', style=ButtonStyle.green, custom_id='autoplay_button')
     async def toggle_autoplay(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in a voice channel to use this command.",
+            await interaction.response.send_message("You must be in the same voice channel as me to use this command..",
                                                     ephemeral=True)
             return
         # If autoplay is disabled, enable it and change button label
