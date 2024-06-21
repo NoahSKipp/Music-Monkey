@@ -195,8 +195,9 @@ class MusicCog(commands.Cog):
 
     # Checks for the user and the associated voice channel
     async def user_in_voice(self, interaction):
-        member = interaction.guild.get_member(interaction.user.id)
-        return member.voice and member.voice.channel
+        # Check if the user is in the same voice channel as the bot
+        member = interaction.user
+        return member.voice and member.voice.channel == interaction.guild.voice_client.channel if interaction.guild.voice_client else False
 
     # Checks if the user has the required permissions to engage with playback commands/buttons
     async def interaction_check(self, interaction: discord.Interaction):
@@ -455,10 +456,12 @@ class MusicCog(commands.Cog):
             await interaction.response.send_message(embed=embed, view=view, ephemeral=False)
 
     # Command to trigger the DJ-only playback mode
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name='dj', description='Toggle DJ-only command restrictions')
     async def toggle_dj_mode(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         if not interaction.user.guild_permissions.manage_roles:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "You do not have the required permissions to use this command.",
                 ephemeral=True
             )
@@ -469,13 +472,16 @@ class MusicCog(commands.Cog):
         new_state = not current_state
         await db.set_dj_only_enabled(guild_id, new_state)
 
-        await interaction.response.send_message(f'DJ-only mode is now {"enabled" if new_state else "disabled"}.')
+        await interaction.followup.send(f'DJ-only mode is now {"enabled" if new_state else "disabled"}.')
 
     # Command to select a DJ role
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name='setdj', description='Set a DJ role')
     async def set_dj_role(self, interaction: discord.Interaction):
+        await interaction.response.defer(
+            ephemeral=True)
         if not interaction.user.guild_permissions.manage_roles:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "You do not have the required permissions to use this command.",
                 ephemeral=True
             )
@@ -487,14 +493,18 @@ class MusicCog(commands.Cog):
             for role in roles
         ]
         view = SelectRoleView(options, interaction.user.id)
-        await interaction.response.send_message("Please select a DJ role from the menu:", view=view, ephemeral=True)
+        await interaction.followup.send("Please select a DJ role from the menu:", view=view, ephemeral=True)
 
         # Wait for the user's selection
         await view.wait()
 
         # Update the DJ role in the database
-        selected_role_id = int(view.children[0].values[0])
-        await db.set_dj_role(interaction.guild_id, selected_role_id)
+        if view.values:
+            selected_role_id = int(view.values[0])
+            await db.set_dj_role(interaction.guild_id, selected_role_id)
+            await interaction.followup.send(f"DJ role updated successfully to {view.selected_role_name}.")
+        else:
+            await interaction.followup.send("No DJ role selected.")
 
     # Command to engage playback with a given query
     @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
@@ -587,14 +597,15 @@ class MusicCog(commands.Cog):
     # Command to skip the current song
     @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name='skip', description='Skip the current playing song')
-    async def skip(self, interaction: Interaction):
+    async def skip(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         if not await self.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in a voice channel to use this command.",
-                                                    ephemeral=True)
+            await interaction.followup.send("You must be in a voice channel to use this command.", ephemeral=True)
             return
+
         player: wavelink.Player = interaction.guild.voice_client
-        if player is None:
-            await interaction.response.send_message("The queue is empty, as I'm not active right now.", ephemeral=True)
+        if player is None or not player.is_connected:
+            await interaction.followup.send("The queue is empty, as I'm not active right now.", ephemeral=True)
             return
 
         # Stops the current track and trigger the track end event
@@ -604,9 +615,9 @@ class MusicCog(commands.Cog):
         if not player.queue.is_empty:
             next_track = player.queue.get()
             await player.play(next_track)  # Play the next track
-            await interaction.response.send_message(f"Now playing: {next_track.title}")
+            await interaction.followup.send(f"Now playing: {next_track.title}")
         else:
-            await interaction.response.send_message("The queue is currently empty.")
+            await interaction.followup.send("The queue is currently empty.")
 
     # Handles command execution errors and delegates to the error_handler
     @skip.error
@@ -617,19 +628,20 @@ class MusicCog(commands.Cog):
     @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name='pause', description='Pause the music playback')
     async def pause(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         if not await self.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in a voice channel to use this command.",
-                                                    ephemeral=True)
+            await interaction.followup.send("You must be in a voice channel to use this command.", ephemeral=True)
             return
+
         player = interaction.guild.voice_client
         if player and isinstance(player, wavelink.Player):
             if not player.paused:
-                await player.pause(True)
-                await interaction.response.send_message("Playback has been paused.")
+                await player.pause(True)  # Pause the playback
+                await interaction.followup.send("Playback has been paused.")
             else:
-                await interaction.response.send_message("Playback is already paused.", ephemeral=True)
+                await interaction.followup.send("Playback is already paused.", ephemeral=True)
         else:
-            await interaction.response.send_message("The bot is not connected to a voice channel.", ephemeral=True)
+            await interaction.followup.send("The bot is not connected to a voice channel.", ephemeral=True)
 
     # Handles command execution errors and delegates to the error_handler
     @pause.error
@@ -640,19 +652,20 @@ class MusicCog(commands.Cog):
     @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name='resume', description='Resume the music playback if paused')
     async def resume(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         if not await self.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in a voice channel to use this command.",
-                                                    ephemeral=True)
+            await interaction.followup.send("You must be in a voice channel to use this command.", ephemeral=True)
             return
+
         player = interaction.guild.voice_client
         if player and isinstance(player, wavelink.Player):
             if player.paused:
-                await player.pause(False)
-                await interaction.response.send_message("Playback has been resumed.")
+                await player.pause(False)  # Resume playback
+                await interaction.followup.send("Playback has been resumed.")
             else:
-                await interaction.response.send_message("Playback is not paused.", ephemeral=True)
+                await interaction.followup.send("Playback is not paused.", ephemeral=True)
         else:
-            await interaction.response.send_message("The bot is not connected to a voice channel.", ephemeral=True)
+            await interaction.followup.send("The bot is not connected to a voice channel.", ephemeral=True)
 
     # Handles command execution errors and delegates to the error_handler
     @resume.error
@@ -665,9 +678,9 @@ class MusicCog(commands.Cog):
     @app_commands.command(name='stop', description='Stop the music and clear the queue')
     async def stop(self, interaction: discord.Interaction):
         logging.debug("Stop command received.")
+        await interaction.response.defer(ephemeral=True)  # Signal to Discord that more time is needed to process
         if not await self.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in a voice channel to use this command.",
-                                                    ephemeral=True)
+            await interaction.followup.send("You must be in a voice channel to use this command.", ephemeral=True)
             return
 
         player = interaction.guild.voice_client
@@ -675,7 +688,7 @@ class MusicCog(commands.Cog):
             logging.debug("Setting was_forcefully_stopped flag to True.")
             player.was_forcefully_stopped = True  # Set the flag before stopping the player
             await self.disconnect_and_cleanup(player)
-            await interaction.response.send_message('Stopped the music and cleared the queue.', ephemeral=False)
+            await interaction.followup.send('Stopped the music and cleared the queue.', ephemeral=False)
 
     # Handles command execution errors and delegates to the error_handler
     @stop.error
@@ -685,7 +698,8 @@ class MusicCog(commands.Cog):
     # Command to display the queue
     @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name='queue', description='Show the current music queue')
-    async def show_queue(self, interaction: Interaction):
+    async def show_queue(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         await self.display_queue(interaction, 1)
 
     # Handles command execution errors and delegates to the error_handler
@@ -694,33 +708,39 @@ class MusicCog(commands.Cog):
         await self.error_handler(interaction, error)
 
     # Command to clear the queue
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name='clear', description='Clear the current music queue')
-    async def clear(self, interaction: Interaction):
+    async def clear(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         if not await self.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in a voice channel to use this command.",
-                                                    ephemeral=True)
+            await interaction.followup.send("You must be in a voice channel to use this command.", ephemeral=True)
             return
 
         player = interaction.guild.voice_client
         if not player or player.queue.is_empty:
             # If queue is empty, send a message
-            await interaction.response.send_message("The queue is already empty.", ephemeral=True)
+            await interaction.followup.send("The queue is already empty.", ephemeral=True)
         else:
             player.queue.clear()  # Clear the queue
-            await interaction.response.send_message("The music queue has been cleared.", ephemeral=True)
+            await interaction.followup.send("The music queue has been cleared.", ephemeral=True)
+
+    @clear.error
+    async def clear_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self.error_handler(interaction, error)
 
     # Command to remove songs from the queue that were requested by users no longer in the voice channel
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name='cleargone',
                           description='Remove tracks from the queue requested by users not in the voice channel')
     async def cleargone(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=False)
         if not await self.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in a voice channel to use this command.",
-                                                    ephemeral=True)
+            await interaction.followup.send("You must be in a voice channel to use this command.", ephemeral=True)
             return
 
         player = interaction.guild.voice_client
         if not player or player.queue.is_empty:
-            await interaction.response.send_message("The queue is empty.", ephemeral=True)
+            await interaction.followup.send("The queue is empty.", ephemeral=True)
             return
 
         voice_channel_members = {member.id for member in interaction.user.voice.channel.members}
@@ -733,23 +753,28 @@ class MusicCog(commands.Cog):
             player.queue.delete(index)
 
         removed_count = initial_count - len(player.queue)
-        await interaction.response.send_message(
-            f"Removed {removed_count} tracks requested by users not currently in the channel.", ephemeral=False)
+        await interaction.followup.send(
+            f"Removed {removed_count} tracks requested by users not currently in the channel.")
+
+    @cleargone.error
+    async def cleargone_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self.error_handler(interaction, error)
 
     # Command to move a specific song in the queue to a new position in the queue
     @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name='move', description='Move a song in the queue from one position to another')
-    @app_commands.describe(position="The song's current position in the queue", new_position="The song's new position "
-                                                                                             "in the queue")
+    @app_commands.describe(position="The song's current position in the queue",
+                           new_position="The song's new position in the queue")
     async def move(self, interaction: discord.Interaction, position: int, new_position: int):
+        await interaction.response.defer(ephemeral=False)
+
         if not await self.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in a voice channel to use this command.",
-                                                    ephemeral=True)
+            await interaction.followup.send("You must be in a voice channel to use this command.", ephemeral=True)
             return
 
         player = interaction.guild.voice_client
         if not player or player.queue.is_empty:
-            await interaction.response.send_message("The queue is empty.", ephemeral=True)
+            await interaction.followup.send("The queue is empty.", ephemeral=True)
             return
 
         # Convert to zero-indexed
@@ -757,7 +782,7 @@ class MusicCog(commands.Cog):
         new_position -= 1
 
         if position < 0 or new_position < 0 or position >= len(player.queue) or new_position >= len(player.queue):
-            await interaction.response.send_message("Invalid positions provided.", ephemeral=True)
+            await interaction.followup.send("Invalid positions provided.", ephemeral=True)
             return
 
         try:
@@ -768,10 +793,10 @@ class MusicCog(commands.Cog):
             # Insert the track at the new position
             player.queue.put_at(new_position, track)
 
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"Moved track from position {position + 1} to position {new_position + 1}.", ephemeral=False)
         except (IndexError, wavelink.QueueEmpty) as e:
-            await interaction.response.send_message(f"An error occurred: {str(e)}", ephemeral=True)
+            await interaction.followup.send(f"An error occurred: {str(e)}", ephemeral=True)
 
     # Handles command execution errors and delegates to the error_handler
     @move.error
@@ -783,26 +808,27 @@ class MusicCog(commands.Cog):
     @app_commands.command(name='remove', description='Remove a specific song from the queue by its position')
     @app_commands.describe(position='Position in the queue of the song to remove')
     async def remove(self, interaction: discord.Interaction, position: int):
+        await interaction.response.defer(ephemeral=True)
+
         if not await self.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in a voice channel to use this command.",
-                                                    ephemeral=True)
+            await interaction.followup.send("You must be in a voice channel to use this command.", ephemeral=True)
             return
 
         player = interaction.guild.voice_client
         if not player or player.queue.is_empty:
-            await interaction.response.send_message("The queue is empty.", ephemeral=True)
+            await interaction.followup.send("The queue is empty.", ephemeral=True)
             return
 
         if position < 1 or position > len(player.queue):
-            await interaction.response.send_message("Invalid position in the queue.", ephemeral=True)
+            await interaction.followup.send("Invalid position in the queue.", ephemeral=True)
             return
 
         try:
-            player.queue.delete(position - 1)  # Adjust spot for queue
-            await interaction.response.send_message(f"Removed track at position {position} from the queue.",
-                                                    ephemeral=False)
+            # Delete the track at the specified position, adjusted for zero-indexed list
+            player.queue.delete(position - 1)
+            await interaction.followup.send(f"Removed track at position {position} from the queue.", ephemeral=False)
         except IndexError:
-            await interaction.response.send_message("No track found at the specified position.", ephemeral=True)
+            await interaction.followup.send("No track found at the specified position.", ephemeral=True)
 
     # Handles command execution errors and delegates to the error_handler
     @remove.error
@@ -812,16 +838,17 @@ class MusicCog(commands.Cog):
     # Command to shuffle the queue
     @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name='shuffle', description='Shuffles the current music queue')
-    async def shuffle(self, interaction: Interaction):
+    async def shuffle(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+
         if not await self.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in a voice channel to use this command.",
-                                                    ephemeral=True)
+            await interaction.followup.send("You must be in a voice channel to use this command.", ephemeral=True)
             return
 
         player = interaction.guild.voice_client
         if not player or not player.queue or not hasattr(player,
                                                          'now_playing_message') or not player.now_playing_message:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "Shuffle can only be used when a song is playing and visible in the Now Playing message.",
                 ephemeral=True)
             return
@@ -830,7 +857,7 @@ class MusicCog(commands.Cog):
         player.queue.shuffle()
 
         # Send confirmation message
-        await interaction.response.send_message("The queue has been shuffled.", ephemeral=True)
+        await interaction.followup.send("The queue has been shuffled.", ephemeral=False)
 
     # Handles command execution errors and delegates to the error_handler
     @shuffle.error
@@ -845,22 +872,24 @@ class MusicCog(commands.Cog):
         app_commands.Choice(name='disabled', value='disabled')
     ])
     async def autoplay(self, interaction: discord.Interaction, mode: str):
+        await interaction.response.defer(ephemeral=True)
+
         if not await self.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in a voice channel to use this command.",
-                                                    ephemeral=True)
+            await interaction.followup.send("You must be in a voice channel to use this command.", ephemeral=True)
             return
 
         player = interaction.guild.voice_client
         if not player:
-            await interaction.response.send_message("Not connected to a voice channel.", ephemeral=True)
+            await interaction.followup.send("Not connected to a voice channel.", ephemeral=True)
             return
 
+        # Apply the autoplay mode based on user choice
         if mode == 'enabled':
             player.autoplay = wavelink.AutoPlayMode.enabled
-            await interaction.response.send_message("AutoPlay has been enabled.", ephemeral=True)
+            await interaction.followup.send("AutoPlay has been enabled.", ephemeral=True)
         elif mode == 'disabled':
             player.autoplay = wavelink.AutoPlayMode.disabled
-            await interaction.response.send_message("AutoPlay has been disabled.", ephemeral=True)
+            await interaction.followup.send("AutoPlay has been disabled.", ephemeral=True)
 
     # Handles command execution errors and delegates to the error_handler
     @autoplay.error
@@ -876,22 +905,20 @@ class MusicCog(commands.Cog):
         app_commands.Choice(name="Loop Queue", value="loop_all")
     ])
     async def loop(self, interaction: discord.Interaction, mode: app_commands.Choice[str]):
+        await interaction.response.defer(ephemeral=True)
+
         if not await self.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in a voice channel to use this command.",
-                                                    ephemeral=True)
+            await interaction.followup.send("You must be in a voice channel to use this command.", ephemeral=True)
             return
 
         player = interaction.guild.voice_client
         if not player:
-            await interaction.response.send_message("I'm not connected to a voice channel.", ephemeral=True)
+            await interaction.followup.send("I'm not connected to a voice channel.", ephemeral=True)
             return
 
-        if not wavelink.Player.playing:
-            await interaction.response.send_message("No music is currently playing.", ephemeral=True)
+        if not player.playing:
+            await interaction.followup.send("No music is currently playing.", ephemeral=True)
             return
-
-        # Defer the interaction response to avoid timeout
-        await interaction.response.defer(ephemeral=False)
 
         # Set the loop mode based on user input
         if mode.value == "normal":
@@ -913,44 +940,52 @@ class MusicCog(commands.Cog):
         await self.error_handler(interaction, error)
 
     # Command to jump to a specific time in the current track
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name='jump', description='Jump to a specific time in the current track')
     @app_commands.describe(time='Time to jump to in the format mm:ss')
     async def jump(self, interaction: discord.Interaction, time: str):
+        await interaction.response.defer(ephemeral=True)
+
         if not await self.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in a voice channel to use this command.",
-                                                    ephemeral=True)
+            await interaction.followup.send("You must be in a voice channel to use this command.", ephemeral=True)
             return
+
         # Validate and parse the time format
         try:
             minutes, seconds = map(int, time.split(':'))
             position = (minutes * 60 + seconds) * 1000  # Convert time to milliseconds
         except ValueError:
-            await interaction.response.send_message("Invalid time format. Please use mm:ss format.", ephemeral=True)
+            await interaction.followup.send("Invalid time format. Please use mm:ss format.", ephemeral=True)
             return
 
         # Get the current player
         player = interaction.guild.voice_client
-        if player and wavelink.Player.playing:
+        if player and player.playing:
             # Seek to the desired position
             await player.seek(position)
-            await interaction.response.send_message(f"Jumped to {minutes} minutes and {seconds} seconds.",
-                                                    ephemeral=True)
+            await interaction.followup.send(f"Jumped to {minutes} minutes and {seconds} seconds.", ephemeral=False)
         else:
-            await interaction.response.send_message("There is no active player or track playing.", ephemeral=True)
+            await interaction.followup.send("There is no active player or track playing.", ephemeral=True)
+
+    @jump.error
+    async def jump_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self.error_handler(interaction, error)
 
     # Command to apply filters to the playback
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name='filters', description='Select a filter to apply')
     async def filters(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+
         player = interaction.guild.voice_client
         if not player:
-            return await interaction.response.send_message("Not connected to a voice channel.", ephemeral=True)
+            await interaction.followup.send("Not connected to a voice channel.", ephemeral=True)
+            return
 
         options = [
             discord.SelectOption(label='Bass Boost', description='Enhances the bass frequencies', value='bass_boost'),
-            discord.SelectOption(label='Nightcore', description='Increases the pitch and speed',
-                                 value='nightcore'),
-            discord.SelectOption(label='Vaporwave',
-                                 description='Adds a slow rotation and slight pitch shift',
+            discord.SelectOption(label='Nightcore', description='Increases the pitch and speed', value='nightcore'),
+            discord.SelectOption(label='Vaporwave', description='Adds a slow rotation and slight pitch shift',
                                  value='vaporwave'),
             discord.SelectOption(label='Karaoke', description='Reduces the lead vocals for a karaoke effect',
                                  value='karaoke'),
@@ -961,19 +996,32 @@ class MusicCog(commands.Cog):
         ]
 
         view = FilterSelectView(options, interaction.user.id, player)
-        await interaction.response.send_message("Please select a filter to apply:", view=view, ephemeral=True)
+        await interaction.followup.send("Please select a filter to apply:", view=view, ephemeral=True)
+
+    @filters.error
+    async def filters_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self.error_handler(interaction, error)
 
     # Command to reset the filters back to default playback
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name='resetfilter', description='Reset all filters')
     async def resetfilter(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+
         player = interaction.guild.voice_client
         if not player:
-            return await interaction.response.send_message("Not connected to a voice channel.", ephemeral=True)
+            await interaction.followup.send("Not connected to a voice channel.", ephemeral=True)
+            return
 
+        # Reset all filters
         filters = wavelink.Filters()
         filters.reset()
         await player.set_filters(filters)
-        await interaction.response.send_message("All filters have been reset!", ephemeral=True)
+        await interaction.followup.send("All filters have been reset!", ephemeral=True)
+
+    @resetfilter.error
+    async def resetfilter_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self.error_handler(interaction, error)
 
     # Command to create a recommendation/wondertrade.
     @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
@@ -1020,14 +1068,15 @@ class MusicCog(commands.Cog):
         await self.error_handler(interaction, error)
 
     # Command to receive a recommendation/wondertrade.
-    @discord.app_commands.checks.cooldown(1, 1800)  # 1 use every 30 minutes
+    @discord.app_commands.checks.cooldown(1, 1800)  # 1 use every 30 seconds
     @app_commands.command(name='receive', description='Receive a song recommendation from anyone else using the bot!')
     async def receive(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+
         if not await self.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in a voice channel to use this command.",
-                                                    ephemeral=True)
+            await interaction.followup.send("You must be in a voice channel to use this command.", ephemeral=True)
             return
-        await interaction.response.defer(ephemeral=False)
+
         try:
             uri, note = await db.receive_wonder_trade(interaction.user.id)
             logging.info(f"Received wonder trade result: {uri}, {note}")
@@ -1036,8 +1085,7 @@ class MusicCog(commands.Cog):
                 if note:
                     embed = discord.Embed(
                         title="You've received a song recommendation note!",
-                        description=f"Oh! It seems the person who recommended this song left you a note!\n"
-                                    f"||{note}||",
+                        description=f"Oh! It seems the person who recommended this song left you a note!\n||{note}||",
                         color=discord.Color.blue()
                     )
                     embed.set_footer(text="Messages aren't monitored or filtered. View at your own discretion.")
@@ -1045,7 +1093,6 @@ class MusicCog(commands.Cog):
 
                 await self.play_song(interaction, uri)
                 await db.delete_wonder_trade(uri)
-
 
             else:
                 uri = uri.lstrip('_')
