@@ -10,6 +10,7 @@ from discord.ext import commands
 import database
 import wavelink
 
+
 class MusicProfile(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -27,6 +28,8 @@ class MusicProfile(commands.Cog):
     @app_commands.command(name='profile', description='Displays a music profile for you or another user')
     @app_commands.describe(user="The user whose music profile you want to view")
     async def music_profile(self, interaction: discord.Interaction, user: discord.User = None):
+        await interaction.response.defer(ephemeral=False)
+
         if user is None:
             user = interaction.user
 
@@ -44,17 +47,18 @@ class MusicProfile(commands.Cog):
             embed.set_footer(text="Music Profile", icon_url=self.bot.user.display_avatar.url)
             embed.timestamp = discord.utils.utcnow()
 
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            await interaction.followup.send(embed=embed, ephemeral=False)
         else:
-            await interaction.response.send_message(f"🚫 No music profile found for {user.display_name}.",
-                                                    ephemeral=True)
+            await interaction.followup.send(f"🚫 No music profile found for {user.display_name}.", ephemeral=True)
 
     @app_commands.command(name='leaderboard', description='Show the music leaderboard for this server')
     async def leaderboard(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+
         try:
             leaderboard_data = await database.get_leaderboard(interaction.guild_id)
             if not leaderboard_data:
-                await interaction.response.send_message("No data available yet.")
+                await interaction.followup.send("No data available yet.")
                 return
 
             embed = discord.Embed(title="🎵 Music Leaderboard 🎵", description="Top music players in the server!",
@@ -72,7 +76,7 @@ class MusicProfile(commands.Cog):
                     medal = f"{idx}."
 
                 if idx == 1:
-                    embed.set_thumbnail(url=user.avatar.url)
+                    embed.set_thumbnail(url=user.display_avatar.url)
 
                 name = f"{medal} {user.display_name}"
                 value = f"🎶 Plays: {count}"
@@ -81,9 +85,10 @@ class MusicProfile(commands.Cog):
             embed.set_footer(text="Leaderboard updated")
             embed.timestamp = discord.utils.utcnow()
 
-            await interaction.response.send_message(embed=embed)
+            await interaction.followup.send(embed=embed)
         except Exception as e:
-            await interaction.response.send_message(f"Error retrieving leaderboard: {e}", ephemeral=False)
+            await interaction.followup.send(f"Error retrieving leaderboard: {e}", ephemeral=False)
+
 
 async def setup(bot):
     await bot.add_cog(MusicProfile(bot))
