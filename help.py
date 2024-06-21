@@ -12,11 +12,11 @@ class HelpCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-
     @app_commands.command(name='help', description='See all commands')
     async def help_command(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         embed = self.about_me_embed()
-        await interaction.response.send_message(embed=embed, view=self.create_help_menu(), ephemeral=True)
+        await interaction.followup.send(embed=embed, view=self.create_help_menu(), ephemeral=True)
 
     def about_me_embed(self):
         embed = discord.Embed(
