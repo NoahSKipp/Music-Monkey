@@ -1,14 +1,17 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-import asyncio  # Import asyncio for sleep functionality
-import database  # Assuming the database module handles MySQL interactions
+import asyncio
+import database
 from permissions import can_use_updates_commands
+import logging
+
 
 class BroadcastCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.creator_ids = ['338735185900077066', '99624063655215104']  # Discord-ID of the user who should be able to use this function
+        self.creator_ids = ['338735185900077066', '99624063655215104']  # Discord-ID of the users who should be able
+        # to use this function
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -35,29 +38,29 @@ class BroadcastCog(commands.Cog):
             if updates_channel_id:
                 channel = guild.get_channel(updates_channel_id)
                 if channel:
-                    try:
-                        await channel.send(embed=embed)
-                        print(f"Message sent successfully to {guild.name}")
-                        await asyncio.sleep(1)  # Delay to prevent hitting rate limits
-                        continue
-                    except discord.Forbidden:
-                        print(f"Permission denied to send message to {channel.name} in {guild.name}")
-                    except discord.HTTPException as e:
-                        print(f"Failed to send message to {channel.name} in {guild.name}: {e}")
+                    await self.send_embed_to_channel(channel, embed, guild.name)
+                    continue
 
             # Fall back to the old method if no updates channel is set or updates are enabled
             channel_names = ["general", "main-channel", "main"]
             for channel in guild.text_channels:
                 if channel.name in channel_names:
-                    try:
-                        await channel.send(embed=embed)
-                        print(f"Message sent successfully to {guild.name}")
-                        await asyncio.sleep(1)  # Delay to prevent hitting rate limits
-                        break
-                    except discord.Forbidden:
-                        print(f"Permission denied to send message to {channel.name} in {guild.name}")
-                    except discord.HTTPException as e:
-                        print(f"Failed to send message to {channel.name} in {guild.name}: {e}")
+                    await self.send_embed_to_channel(channel, embed, guild.name)
+                    break
+
+    async def send_embed_to_channel(self, channel, embed, guild_name):
+        try:
+            await channel.send(embed=embed)
+            print(f"Message sent successfully to {guild_name}")
+            await asyncio.sleep(2)  # Delay to prevent hitting rate limits
+        except discord.Forbidden:
+            print(f"Permission denied to send message to {channel.name} in {guild_name}")
+        except discord.HTTPException as e:
+            print(f"Failed to send message to {channel.name} in {guild_name}: {e}")
+            if e.status == 429:  # Handle rate limit
+                retry_after = int(e.response.headers.get('Retry-After', 5))
+                await asyncio.sleep(retry_after)
+                await self.send_embed_to_channel(channel, embed, guild_name)  # Retry sending the message
 
     # Lets a server moderator enable or disable the bot broadcasts.
     @app_commands.command(name="updates", description="Enable or disable updates for this server")
