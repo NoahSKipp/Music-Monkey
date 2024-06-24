@@ -611,7 +611,7 @@ class MusicCog(commands.Cog):
             return
 
         player: wavelink.Player = interaction.guild.voice_client
-        if player is None or not player.is_connected:
+        if player is None or not player.connected:
             await interaction.followup.send("The queue is empty, as I'm not active right now.", ephemeral=True)
             return
 
@@ -1433,7 +1433,7 @@ class MusicButtons(ui.View):
         # Otherwise disable autoplay and change button label
         else:
             self.player.autoplay = wavelink.AutoPlayMode.disabled
-            button.label = "ENABLE AUTOPLAY"
+            button.label = "AUTOPLAY"
             response = "Autoplay disabled."
         await interaction.response.edit_message(view=self)
         await interaction.followup.send(response, ephemeral=True)
