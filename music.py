@@ -1166,6 +1166,7 @@ class MusicCog(commands.Cog):
                 ephemeral=True
             )
 
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name='lyrics', description='Fetch lyrics for the current playing track')
     async def lyrics(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=False)
@@ -1198,6 +1199,9 @@ class MusicCog(commands.Cog):
         except Exception as e:
             await interaction.followup.send(f"An error occurred while fetching lyrics: {str(e)}")
 
+    @lyrics.error
+    async def lyrics_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self.error_handler(interaction, error)
 
 # Set up and add the view class for the filter selection
 class FilterSelectView(discord.ui.View):
