@@ -12,6 +12,7 @@ import logging
 import database as db
 from datetime import datetime, timedelta
 import asyncio
+import aiohttp
 
 
 # Set up the role view class for the DJ selection
@@ -607,7 +608,8 @@ class MusicCog(commands.Cog):
     async def skip(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..", ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+                                            ephemeral=True)
             return
 
         player: wavelink.Player = interaction.guild.voice_client
@@ -637,7 +639,8 @@ class MusicCog(commands.Cog):
     async def pause(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..", ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+                                            ephemeral=True)
             return
 
         player = interaction.guild.voice_client
@@ -661,7 +664,8 @@ class MusicCog(commands.Cog):
     async def resume(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..", ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+                                            ephemeral=True)
             return
 
         player = interaction.guild.voice_client
@@ -687,7 +691,8 @@ class MusicCog(commands.Cog):
         logging.debug("Stop command received.")
         await interaction.response.defer(ephemeral=True)  # Signal to Discord that more time is needed to process
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..", ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+                                            ephemeral=True)
             return
 
         player = interaction.guild.voice_client
@@ -720,7 +725,8 @@ class MusicCog(commands.Cog):
     async def clear(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..", ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+                                            ephemeral=True)
             return
 
         player = interaction.guild.voice_client
@@ -742,7 +748,8 @@ class MusicCog(commands.Cog):
     async def cleargone(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=False)
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..", ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+                                            ephemeral=True)
             return
 
         player = interaction.guild.voice_client
@@ -776,7 +783,8 @@ class MusicCog(commands.Cog):
         await interaction.response.defer(ephemeral=False)
 
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..", ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+                                            ephemeral=True)
             return
 
         player = interaction.guild.voice_client
@@ -818,7 +826,8 @@ class MusicCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..", ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+                                            ephemeral=True)
             return
 
         player = interaction.guild.voice_client
@@ -849,7 +858,8 @@ class MusicCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..", ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+                                            ephemeral=True)
             return
 
         player = interaction.guild.voice_client
@@ -882,7 +892,8 @@ class MusicCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..", ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+                                            ephemeral=True)
             return
 
         player = interaction.guild.voice_client
@@ -915,7 +926,8 @@ class MusicCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..", ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+                                            ephemeral=True)
             return
 
         player = interaction.guild.voice_client
@@ -954,7 +966,8 @@ class MusicCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..", ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+                                            ephemeral=True)
             return
 
         # Validate and parse the time format
@@ -1081,7 +1094,8 @@ class MusicCog(commands.Cog):
 
         channel = interaction.user.voice.channel if interaction.user and interaction.user.voice else None
         if not channel:
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..", ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+                                            ephemeral=True)
             return
 
         player = interaction.guild.voice_client
@@ -1151,6 +1165,38 @@ class MusicCog(commands.Cog):
                 "An error occurred while processing the command.",
                 ephemeral=True
             )
+
+    @app_commands.command(name='lyrics', description='Fetch lyrics for the current playing track')
+    async def lyrics(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=False)
+
+        player: wavelink.Player = interaction.guild.voice_client
+        if not player or not player.connected:
+            await interaction.followup.send("The bot is not connected to a voice channel.")
+            return
+
+        try:
+            response = await player.node.send(method="GET",
+                                              path=f"v4/sessions/{player.node.session_id}/players/{player.guild.id}/lyrics")
+            if 'lines' in response:
+                lyrics_lines = response['lines']
+                lyrics_text = "\n".join([f"{line['line']}" for line in lyrics_lines if line.get('line')])
+                if lyrics_text:
+                    embed = discord.Embed(title=f"Lyrics: {response.get('track', {}).get('title', 'Current Track')}",
+                                          description=lyrics_text,
+                                          color=discord.Color.dark_red())
+                    embed.add_field(name="Artist", value=response.get('track', {}).get('author', 'Unknown Artist'),
+                                    inline=True)
+                    embed.set_footer(text=f"Requested by {interaction.user.display_name}",
+                                     icon_url=interaction.user.display_avatar.url)
+                    await interaction.followup.send(embed=embed)
+                else:
+                    await interaction.followup.send("Lyrics not found.")
+            else:
+                error_message = response.get('error', 'Lyrics not found.')
+                await interaction.followup.send(f"Failed to fetch lyrics: {error_message}")
+        except Exception as e:
+            await interaction.followup.send(f"An error occurred while fetching lyrics: {str(e)}")
 
 
 # Set up and add the view class for the filter selection
