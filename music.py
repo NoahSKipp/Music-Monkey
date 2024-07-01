@@ -608,7 +608,7 @@ class MusicCog(commands.Cog):
     async def skip(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
                                             ephemeral=True)
             return
 
@@ -639,7 +639,7 @@ class MusicCog(commands.Cog):
     async def pause(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
                                             ephemeral=True)
             return
 
@@ -664,7 +664,7 @@ class MusicCog(commands.Cog):
     async def resume(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
                                             ephemeral=True)
             return
 
@@ -691,7 +691,7 @@ class MusicCog(commands.Cog):
         logging.debug("Stop command received.")
         await interaction.response.defer(ephemeral=True)  # Signal to Discord that more time is needed to process
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
                                             ephemeral=True)
             return
 
@@ -725,7 +725,7 @@ class MusicCog(commands.Cog):
     async def clear(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
                                             ephemeral=True)
             return
 
@@ -748,7 +748,7 @@ class MusicCog(commands.Cog):
     async def cleargone(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=False)
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
                                             ephemeral=True)
             return
 
@@ -783,7 +783,7 @@ class MusicCog(commands.Cog):
         await interaction.response.defer(ephemeral=False)
 
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
                                             ephemeral=True)
             return
 
@@ -826,7 +826,7 @@ class MusicCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
                                             ephemeral=True)
             return
 
@@ -858,7 +858,7 @@ class MusicCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
                                             ephemeral=True)
             return
 
@@ -892,7 +892,7 @@ class MusicCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
                                             ephemeral=True)
             return
 
@@ -926,7 +926,7 @@ class MusicCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
                                             ephemeral=True)
             return
 
@@ -966,7 +966,7 @@ class MusicCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
                                             ephemeral=True)
             return
 
@@ -1094,7 +1094,7 @@ class MusicCog(commands.Cog):
 
         channel = interaction.user.voice.channel if interaction.user and interaction.user.voice else None
         if not channel:
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
                                             ephemeral=True)
             return
 
@@ -1337,7 +1337,7 @@ class MusicButtons(ui.View):
     @ui.button(label='VOL +', style=ButtonStyle.green, custom_id='vol_up_button')
     async def volume_up(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in the same voice channel as me to use this command..",
+            await interaction.response.send_message("You must be in the same voice channel as me to use this command.",
                                                     ephemeral=True)
             return
         new_volume = min(self.player.volume + 10, 100)  # Volume should not exceed 100
@@ -1348,7 +1348,7 @@ class MusicButtons(ui.View):
     @ui.button(label='PAUSE', style=ButtonStyle.blurple, custom_id='pause_button')
     async def pause(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in the same voice channel as me to use this command..",
+            await interaction.response.send_message("You must be in the same voice channel as me to use this command.",
                                                     ephemeral=True)
             return
         # Check the current paused state directly from the player and toggle it
@@ -1366,7 +1366,7 @@ class MusicButtons(ui.View):
     @ui.button(label='VOL -', style=ButtonStyle.green, custom_id='vol_down_button')
     async def volume_down(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in the same voice channel as me to use this command..",
+            await interaction.response.send_message("You must be in the same voice channel as me to use this command.",
                                                     ephemeral=True)
             return
         new_volume = max(self.player.volume - 10, 0)  # Volume should not go below 0
@@ -1377,7 +1377,7 @@ class MusicButtons(ui.View):
     @ui.button(label='SKIP', style=ButtonStyle.green, custom_id='skip_button')
     async def skip(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in the same voice channel as me to use this command..",
+            await interaction.response.send_message("You must be in the same voice channel as me to use this command.",
                                                     ephemeral=True)
             return
         await self.player.skip()
@@ -1387,7 +1387,7 @@ class MusicButtons(ui.View):
     @ui.button(label='LOOP', style=ButtonStyle.green, custom_id='loop_button')
     async def toggle_loop(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in the same voice channel as me to use this command..",
+            await interaction.response.send_message("You must be in the same voice channel as me to use this command.",
                                                     ephemeral=True)
             return
 
@@ -1414,7 +1414,7 @@ class MusicButtons(ui.View):
     @ui.button(label='REWIND', style=ButtonStyle.green, custom_id='rewind_button')
     async def rewind(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in the same voice channel as me to use this command..",
+            await interaction.response.send_message("You must be in the same voice channel as me to use this command.",
                                                     ephemeral=True)
             return
         # Calculate the new position, ensuring it does not fall below zero
@@ -1426,7 +1426,7 @@ class MusicButtons(ui.View):
     @ui.button(label='STOP', style=ButtonStyle.red, custom_id='stop_button')
     async def stop_music(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in the same voice channel as me to use this command..",
+            await interaction.response.send_message("You must be in the same voice channel as me to use this command.",
                                                     ephemeral=True)
             return
 
@@ -1460,7 +1460,7 @@ class MusicButtons(ui.View):
     @ui.button(label='FORWARD', style=ButtonStyle.green, custom_id='forward_button')
     async def forward(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in the same voice channel as me to use this command..",
+            await interaction.response.send_message("You must be in the same voice channel as me to use this command.",
                                                     ephemeral=True)
             return
         # Calculate the new position, ensuring it does not exceed the track's duration
@@ -1472,7 +1472,7 @@ class MusicButtons(ui.View):
     @ui.button(label='AUTOPLAY', style=ButtonStyle.green, custom_id='autoplay_button')
     async def toggle_autoplay(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in the same voice channel as me to use this command..",
+            await interaction.response.send_message("You must be in the same voice channel as me to use this command.",
                                                     ephemeral=True)
             return
         # If autoplay is disabled, enable it and change button label
