@@ -1169,7 +1169,7 @@ class MusicCog(commands.Cog):
     @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name='lyrics', description='Fetch lyrics for the current playing track')
     async def lyrics(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=False)
+        await interaction.response.defer(ephemeral=True)
 
         player: wavelink.Player = interaction.guild.voice_client
         if not player or not player.connected:
@@ -1195,9 +1195,9 @@ class MusicCog(commands.Cog):
                     await interaction.followup.send("Lyrics not found.")
             else:
                 error_message = response.get('error', 'Lyrics not found.')
-                await interaction.followup.send(f"Failed to fetch lyrics: {error_message}")
+                await interaction.followup.send(f"An error occurred while fetching your lyrics")
         except Exception as e:
-            await interaction.followup.send(f"An error occurred while fetching lyrics: {str(e)}")
+            await interaction.followup.send(f"An error occurred while fetching your lyrics")
 
     @lyrics.error
     async def lyrics_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
