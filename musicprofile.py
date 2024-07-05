@@ -17,8 +17,15 @@ class MusicProfile(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    async def has_voted(self, user_id: int) -> bool:
-        url = f"https://top.gg/api/bots/{config.BOT_ID}/check?userId={user_id}"
+    async def has_voted(self, user: discord.User, guild: discord.Guild) -> bool:
+        if guild.id == config.EXEMPT_GUILD_ID:
+            return True
+
+        member = guild.get_member(user.id)
+        if member and any(role.id == config.EXEMPT_ROLE_ID for role in member.roles):
+            return True
+
+        url = f"https://top.gg/api/bots/{config.BOT_ID}/check?userId={user.id}"
         headers = {
             "Authorization": f"Bearer {config.TOPGG_TOKEN}",
             "X-Auth-Key": config.AUTHORIZATION_KEY

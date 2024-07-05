@@ -7,42 +7,13 @@
 import discord
 from discord import app_commands, ui, ButtonStyle
 from discord.ext import commands
-import aiohttp
-
-TOP_GG_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjEyMjgwNzExNzcyMzk1MzE2MjAiLCJib3QiOnRydWUsImlhdCI6MTcxNzY4MDAxNX0.9Ptn1c7ovxdQaIsyJmnNwmPsE_PkccnBT5qmxWLmMF8"
-AUTHORIZATION_KEY = "Nfnf4!9=ddajNgo#DxxA28%$$2dd"
-BOT_ID = "1228071177239531620"
-
 
 class HelpCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    async def has_voted(self, user_id: int) -> bool:
-        url = f"https://top.gg/api/bots/{BOT_ID}/check?userId={user_id}"
-        headers = {
-            "Authorization": f"Bearer {TOP_GG_TOKEN}",
-            "X-Auth-Key": AUTHORIZATION_KEY
-        }
-
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data.get("voted") == 1
-                else:
-                    print(f"Failed to check vote status: {response.status}")
-                    return False
-
     @app_commands.command(name='help', description='See all commands')
     async def help_command(self, interaction: discord.Interaction):
-        if not await self.has_voted(interaction.user.id):
-            await interaction.response.send_message(
-                "Please vote for the bot on Top.gg to access this command! [Vote here](https://top.gg/bot/YOUR_BOT_ID/vote)",
-                ephemeral=True
-            )
-            return
-
         await interaction.response.defer(ephemeral=True)
         embed = self.about_me_embed()
         await interaction.followup.send(embed=embed, view=self.create_help_menu(), ephemeral=True)
@@ -172,3 +143,4 @@ class HelpCog(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(HelpCog(bot))
+

@@ -120,8 +120,15 @@ class MusicCog(commands.Cog):
         self.last_vote_reminder_time_per_guild = {}
         logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
-    async def has_voted(self, user_id: int) -> bool:
-        url = f"https://top.gg/api/bots/{config.BOT_ID}/check?userId={user_id}"
+    async def has_voted(self, user: discord.User, guild: discord.Guild) -> bool:
+        if guild.id == config.EXEMPT_GUILD_ID:
+            return True
+
+        member = guild.get_member(user.id)
+        if member and any(role.id == config.EXEMPT_ROLE_ID for role in member.roles):
+            return True
+
+        url = f"https://top.gg/api/bots/{config.BOT_ID}/check?userId={user.id}"
         headers = {
             "Authorization": f"Bearer {config.TOPGG_TOKEN}",
             "X-Auth-Key": config.AUTHORIZATION_KEY
@@ -714,6 +721,14 @@ class MusicCog(commands.Cog):
                           description='Remove tracks from the queue requested by users not in the voice channel')
     async def cleargone(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=False)
+
+        if not await self.has_voted(interaction.user.id):
+            await interaction.followup.send(
+                "Hey there, music lover! 🎶 This feature is available to our awesome voters. 🌟 Please take a moment to [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) to unlock this perk. As a bonus, Server Boosters and giveaway winners get to skip this step and enjoy all the tunes! 🎉 Thanks for keeping the party going! 🙌",
+                ephemeral=True
+            )
+            return
+
         if not await self.user_in_voice(interaction):
             await interaction.followup.send("You must be in the same voice channel as me to use this command.",
                                             ephemeral=True)
