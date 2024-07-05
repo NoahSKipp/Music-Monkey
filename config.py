@@ -33,3 +33,9 @@ LAVALINK_PORT2 = (os.getenv('LAVALINK_PORT2'))
 LAVALINK_HOST3 = os.getenv('LAVALINK_HOST3')
 LAVALINK_PASSWORD3 = os.getenv('LAVALINK_PASSWORD3')
 LAVALINK_PORT3 = (os.getenv('LAVALINK_PORT3'))
+
+# Top.gg Variables
+TOPGG_TOKEN = os.getenv('TOPGG_TOKEN')
+AUTHORIZATION_KEY = os.getenv('AUTHORIZATION_KEY')
+BOT_ID = os.getenv('BOT_ID')
+PORT = os.getenv('PORT')

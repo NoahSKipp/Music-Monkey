@@ -9,11 +9,29 @@ from discord import app_commands
 from discord.ext import commands
 import database
 import wavelink
+import aiohttp
+import config
 
 
 class MusicProfile(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+
+    async def has_voted(self, user_id: int) -> bool:
+        url = f"https://top.gg/api/bots/{config.BOT_ID}/check?userId={user_id}"
+        headers = {
+            "Authorization": f"Bearer {config.TOPGG_TOKEN}",
+            "X-Auth-Key": config.AUTHORIZATION_KEY
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return data.get("voted") == 1
+                else:
+                    print(f"Failed to check vote status: {response.status}")
+                    return False
 
     @commands.Cog.listener()
     async def on_wavelink_track_start(self, payload):
@@ -28,6 +46,13 @@ class MusicProfile(commands.Cog):
     @app_commands.command(name='profile', description='Displays a music profile for you or another user')
     @app_commands.describe(user="The user whose music profile you want to view")
     async def music_profile(self, interaction: discord.Interaction, user: discord.User = None):
+        if not await self.has_voted(interaction.user.id):
+            await interaction.response.send_message(
+                "Hey there, music lover! 🎶 This feature is available to our awesome voters. 🌟 Please take a moment to [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) to unlock this perk. As a bonus, Server Boosters and giveaway winners get to skip this step and enjoy all the tunes! 🎉 Thanks for keeping the party going! 🙌",
+                ephemeral=True
+            )
+            return
+
         await interaction.response.defer(ephemeral=False)
 
         if user is None:
@@ -53,6 +78,13 @@ class MusicProfile(commands.Cog):
 
     @app_commands.command(name='leaderboard', description='Show the music leaderboard for this server')
     async def leaderboard(self, interaction: discord.Interaction):
+        if not await self.has_voted(interaction.user.id):
+            await interaction.response.send_message(
+                "Hey there, music lover! 🎶 This feature is available to our awesome voters. 🌟 Please take a moment to [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) to unlock this perk. As a bonus, Server Boosters and giveaway winners get to skip this step and enjoy all the tunes! 🎉 Thanks for keeping the party going! 🙌",
+                ephemeral=True
+            )
+            return
+
         await interaction.response.defer()
 
         try:

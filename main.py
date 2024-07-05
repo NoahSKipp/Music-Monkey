@@ -19,8 +19,8 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %
 class MusicMonkey(commands.AutoShardedBot):
     async def setup_hook(self):
         # Setup top.gg client and webhook
-        self.dblclient = topgg.DBLClient(self, config.TOPGG_TOKEN, autopost=True)
-        self.webhook_manager = topgg.WebhookManager(self).dbl_webhook(route="/dblwebhook", auth_key="Test1!")
+        self.dblclient = topgg.DBLClient(self, config.TOPGG_TOKEN, autopost=False)
+        self.webhook_manager = topgg.WebhookManager(self).dbl_webhook(route="/dblwebhook", auth_key=config.AUTHORIZATION_KEY)
 
         # Lavalink node setup
         nodes = [
@@ -41,7 +41,7 @@ class MusicMonkey(commands.AutoShardedBot):
 
     async def on_ready(self):
         print(f'Logged in as {self.user} and ready!')
-        await self.webhook_manager.run(20418)
+        await self.webhook_manager.run(config.PORT)
 
 
 async def main():

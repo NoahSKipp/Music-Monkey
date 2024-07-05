@@ -11,10 +11,10 @@ import google.generativeai as genai
 import logging
 import config
 import wavelink
+import aiohttp
 
 # API key for Google Gemini
 genai.configure(api_key=config.GEMINI)
-
 
 class RecommendCog(commands.Cog):
     def __init__(self, bot):
@@ -22,8 +22,31 @@ class RecommendCog(commands.Cog):
         self.bot = bot
         discord.utils.setup_logging(level=logging.INFO)
 
+    async def has_voted(self, user_id: int) -> bool:
+        url = f"https://top.gg/api/bots/{config.BOT_ID}/check?userId={user_id}"
+        headers = {
+            "Authorization": f"Bearer {config.TOPGG_TOKEN}",
+            "X-Auth-Key": config.AUTHORIZATION_KEY
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return data.get("voted") == 1
+                else:
+                    print(f"Failed to check vote status: {response.status}")
+                    return False
+
     @app_commands.command(name='recommend', description='Get song recommendations based on the current queue.')
     async def recommend(self, interaction: discord.Interaction):
+        if not await self.has_voted(interaction.user.id):
+            await interaction.response.send_message(
+                "Hey there, music lover! 🎶 This feature is available to our awesome voters. 🌟 Please take a moment to [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) to unlock this perk. As a bonus, Server Boosters and giveaway winners get to skip this step and enjoy all the tunes! 🎉 Thanks for keeping the party going! 🙌",
+                ephemeral=True
+            )
+            return
+
         await interaction.response.defer(ephemeral=True)  # This will signal to Discord that more time is needed
         player = interaction.guild.voice_client
         if not player or not wavelink.Player.connected or wavelink.Player.current is None:
