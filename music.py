@@ -1138,6 +1138,13 @@ class MusicCog(commands.Cog):
     async def lyrics(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
+        if not await self.has_voted(interaction.user.id):
+            await interaction.followup.send(
+                "Hey there, music lover! 🎶 This feature is available to our awesome voters. 🌟 Please take a moment to [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) to unlock this perk. As a bonus, Server Boosters and giveaway winners get to skip this step and enjoy all the tunes! 🎉 Thanks for keeping the party going! 🙌",
+                ephemeral=True
+            )
+            return
+
         player: wavelink.Player = interaction.guild.voice_client
         if not player or not player.connected:
             await interaction.followup.send("The bot is not connected to a voice channel.")
@@ -1162,9 +1169,9 @@ class MusicCog(commands.Cog):
                     await interaction.followup.send("Lyrics not found.")
             else:
                 error_message = response.get('error', 'Lyrics not found.')
-                await interaction.followup.send(f"An error occurred while fetching your lyrics")
+                await interaction.followup.send(f"An error occurred while fetching your lyrics: {error_message}")
         except Exception as e:
-            await interaction.followup.send(f"An error occurred while fetching your lyrics")
+            await interaction.followup.send(f"An error occurred while fetching your lyrics: {e}")
 
     @lyrics.error
     async def lyrics_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):

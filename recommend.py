@@ -40,14 +40,15 @@ class RecommendCog(commands.Cog):
 
     @app_commands.command(name='recommend', description='Get song recommendations based on the current queue.')
     async def recommend(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)  # Defer the interaction first
+
         if not await self.has_voted(interaction.user.id):
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "Hey there, music lover! 🎶 This feature is available to our awesome voters. 🌟 Please take a moment to [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) to unlock this perk. As a bonus, Server Boosters and giveaway winners get to skip this step and enjoy all the tunes! 🎉 Thanks for keeping the party going! 🙌",
                 ephemeral=True
             )
             return
 
-        await interaction.response.defer(ephemeral=True)  # This will signal to Discord that more time is needed
         player = interaction.guild.voice_client
         if not player or not wavelink.Player.connected or wavelink.Player.current is None:
             await interaction.followup.send("No music is currently playing.", ephemeral=True)
