@@ -18,13 +18,42 @@ class MusicProfile(commands.Cog):
         self.bot = bot
 
     async def has_voted(self, user: discord.User, guild: discord.Guild) -> bool:
+        # Log guild and role checks
+        print(f"Checking vote status for user {user.id} in guild {guild.id}")
+
+        # Check if the command is used in the exempt guild
         if guild.id == config.EXEMPT_GUILD_ID:
             return True
 
-        member = guild.get_member(user.id)
-        if member and any(role.id == config.EXEMPT_ROLE_ID for role in member.roles):
-            return True
+        # Check if the user has the exempt role in the exempt guild
+        exempt_guild = self.bot.get_guild(config.EXEMPT_GUILD_ID)
+        if not exempt_guild:
+            try:
+                exempt_guild = await self.bot.fetch_guild(config.EXEMPT_GUILD_ID)
+            except discord.NotFound:
+                return False
+            except discord.Forbidden:
+                return False
+            except Exception as e:
+                return False
 
+        try:
+            exempt_member = await exempt_guild.fetch_member(user.id)
+            if exempt_member:
+                roles = [role.id for role in exempt_member.roles]
+                print(f"Exempt member found in exempt guild with roles: {roles}")
+                if config.EXEMPT_ROLE_ID in roles:
+                    print(
+                        f"User {user.id} has the exempt role {config.EXEMPT_ROLE_ID} in exempt guild {config.EXEMPT_GUILD_ID}.")
+                    return True
+        except discord.NotFound:
+            return False
+        except discord.Forbidden:
+            return False
+        except Exception as e:
+            return False
+
+        # If not exempt by guild or role, check vote status on Top.gg
         url = f"https://top.gg/api/bots/{config.BOT_ID}/check?userId={user.id}"
         headers = {
             "Authorization": f"Bearer {config.TOPGG_TOKEN}",
@@ -35,9 +64,9 @@ class MusicProfile(commands.Cog):
             async with session.get(url, headers=headers) as response:
                 if response.status == 200:
                     data = await response.json()
-                    return data.get("voted") == 1
+                    voted = data.get("voted") == 1
+                    return voted
                 else:
-                    print(f"Failed to check vote status: {response.status}")
                     return False
 
     @commands.Cog.listener()
@@ -53,14 +82,21 @@ class MusicProfile(commands.Cog):
     @app_commands.command(name='profile', description='Displays a music profile for you or another user')
     @app_commands.describe(user="The user whose music profile you want to view")
     async def music_profile(self, interaction: discord.Interaction, user: discord.User = None):
-        if not await self.has_voted(interaction.user.id):
-            await interaction.response.send_message(
-                "Hey there, music lover! 🎶 This feature is available to our awesome voters. 🌟 Please take a moment to [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) to unlock this perk. As a bonus, Server Boosters and giveaway winners get to skip this step and enjoy all the tunes! 🎉 Thanks for keeping the party going! 🙌",
-                ephemeral=True
-            )
-            return
+        await interaction.response.defer(ephemeral=True)
 
-        await interaction.response.defer(ephemeral=False)
+        if not await self.has_voted(interaction.user, interaction.guild):
+            embed = discord.Embed(
+                description=(
+                    "This feature is available to our awesome voters.\n "
+                    "Please take a moment to [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) to unlock this perk. \n"
+                    "As a bonus, Server Boosters and giveaway winners get to skip this step and enjoy all the tunes! <a:tadaMM:1258473486003732642> "
+                ),
+                color=discord.Color.dark_red()
+            )
+            embed.set_author(name="Unlock This Feature!", icon_url=self.bot.user.display_avatar.url)
+            embed.set_footer(text="Thanks for your support!")
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
 
         if user is None:
             user = interaction.user
@@ -85,14 +121,22 @@ class MusicProfile(commands.Cog):
 
     @app_commands.command(name='leaderboard', description='Show the music leaderboard for this server')
     async def leaderboard(self, interaction: discord.Interaction):
-        if not await self.has_voted(interaction.user.id):
-            await interaction.response.send_message(
-                "Hey there, music lover! 🎶 This feature is available to our awesome voters. 🌟 Please take a moment to [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) to unlock this perk. As a bonus, Server Boosters and giveaway winners get to skip this step and enjoy all the tunes! 🎉 Thanks for keeping the party going! 🙌",
-                ephemeral=True
+        await interaction.response.defer()
+
+        if not await self.has_voted(interaction.user, interaction.guild):
+            embed = discord.Embed(
+                description=(
+                    "This feature is available to our awesome voters.\n "
+                    "Please take a moment to [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) to unlock this perk. \n"
+                    "As a bonus, Server Boosters and giveaway winners get to skip this step and enjoy all the tunes! <a:tadaMM:1258473486003732642> "
+                ),
+                color=discord.Color.dark_red()
             )
+            embed.set_author(name="Unlock This Feature!", icon_url=self.bot.user.display_avatar.url)
+            embed.set_footer(text="Thanks for your support!")
+            await interaction.followup.send(embed=embed, ephemeral=True)
             return
 
-        await interaction.response.defer()
 
         try:
             leaderboard_data = await database.get_leaderboard(interaction.guild_id)

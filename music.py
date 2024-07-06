@@ -121,13 +121,42 @@ class MusicCog(commands.Cog):
         logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
     async def has_voted(self, user: discord.User, guild: discord.Guild) -> bool:
+        # Log guild and role checks
+        print(f"Checking vote status for user {user.id} in guild {guild.id}")
+
+        # Check if the command is used in the exempt guild
         if guild.id == config.EXEMPT_GUILD_ID:
             return True
 
-        member = guild.get_member(user.id)
-        if member and any(role.id == config.EXEMPT_ROLE_ID for role in member.roles):
-            return True
+        # Check if the user has the exempt role in the exempt guild
+        exempt_guild = self.bot.get_guild(config.EXEMPT_GUILD_ID)
+        if not exempt_guild:
+            try:
+                exempt_guild = await self.bot.fetch_guild(config.EXEMPT_GUILD_ID)
+            except discord.NotFound:
+                return False
+            except discord.Forbidden:
+                return False
+            except Exception as e:
+                return False
 
+        try:
+            exempt_member = await exempt_guild.fetch_member(user.id)
+            if exempt_member:
+                roles = [role.id for role in exempt_member.roles]
+                print(f"Exempt member found in exempt guild with roles: {roles}")
+                if config.EXEMPT_ROLE_ID in roles:
+                    print(
+                        f"User {user.id} has the exempt role {config.EXEMPT_ROLE_ID} in exempt guild {config.EXEMPT_GUILD_ID}.")
+                    return True
+        except discord.NotFound:
+            return False
+        except discord.Forbidden:
+            return False
+        except Exception as e:
+            return False
+
+        # If not exempt by guild or role, check vote status on Top.gg
         url = f"https://top.gg/api/bots/{config.BOT_ID}/check?userId={user.id}"
         headers = {
             "Authorization": f"Bearer {config.TOPGG_TOKEN}",
@@ -138,9 +167,9 @@ class MusicCog(commands.Cog):
             async with session.get(url, headers=headers) as response:
                 if response.status == 200:
                     data = await response.json()
-                    return data.get("voted") == 1
+                    voted = data.get("voted") == 1
+                    return voted
                 else:
-                    print(f"Failed to check vote status: {response.status}")
                     return False
 
     async def vote_reminder(self, interaction: Interaction):
@@ -512,11 +541,18 @@ class MusicCog(commands.Cog):
             track = results[0]
 
             if "youtube.com" not in track.uri and "youtu.be" not in track.uri:
-                if not await self.has_voted(interaction.user.id):
-                    await interaction.followup.send(
-                        "Hey there, music lover! 🎶 Playing tracks from sources other than YouTube is a special feature just for our awesome voters. 🌟 Please take a moment to [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) to unlock this perk. As a bonus, Server Boosters and giveaway winners get to skip this step and enjoy all the tunes!",
-                        ephemeral=True
+                if not await self.has_voted(interaction.user, interaction.guild):
+                    embed = discord.Embed(
+                        description=(
+                            "Playing tracks from sources other than YouTube is a special feature just for our awesome voters.\n "
+                            "Please take a moment to [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) to unlock this perk. \n"
+                            "As a bonus, Server Boosters and giveaway winners get to skip this step and enjoy all the tunes! <a:tadaMM:1258473486003732642> "
+                        ),
+                        color=discord.Color.dark_red()
                     )
+                    embed.set_author(name="Unlock This Feature!", icon_url=self.bot.user.display_avatar.url)
+                    embed.set_footer(text="Thanks for your support!")
+                    await interaction.followup.send(embed=embed, ephemeral=True)
                     return
 
             channel = interaction.user.voice.channel if interaction.user and interaction.user.voice else None
@@ -722,11 +758,18 @@ class MusicCog(commands.Cog):
     async def cleargone(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=False)
 
-        if not await self.has_voted(interaction.user.id):
-            await interaction.followup.send(
-                "Hey there, music lover! 🎶 This feature is available to our awesome voters. 🌟 Please take a moment to [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) to unlock this perk. As a bonus, Server Boosters and giveaway winners get to skip this step and enjoy all the tunes! 🎉 Thanks for keeping the party going! 🙌",
-                ephemeral=True
+        if not await self.has_voted(interaction.user, interaction.guild):
+            embed = discord.Embed(
+                description=(
+                    "This feature is available to our awesome voters.\n "
+                    "Please take a moment to [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) to unlock this perk. \n"
+                    "As a bonus, Server Boosters and giveaway winners get to skip this step and enjoy all the tunes! <a:tadaMM:1258473486003732642> "
+                ),
+                color=discord.Color.dark_red()
             )
+            embed.set_author(name="Unlock This Feature!", icon_url=self.bot.user.display_avatar.url)
+            embed.set_footer(text="Thanks for your support!")
+            await interaction.followup.send(embed=embed, ephemeral=True)
             return
 
         if not await self.user_in_voice(interaction):
@@ -1153,11 +1196,18 @@ class MusicCog(commands.Cog):
     async def lyrics(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
-        if not await self.has_voted(interaction.user.id):
-            await interaction.followup.send(
-                "Hey there, music lover! 🎶 This feature is available to our awesome voters. 🌟 Please take a moment to [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) to unlock this perk. As a bonus, Server Boosters and giveaway winners get to skip this step and enjoy all the tunes! 🎉 Thanks for keeping the party going! 🙌",
-                ephemeral=True
+        if not await self.has_voted(interaction.user, interaction.guild):
+            embed = discord.Embed(
+                description=(
+                    "This feature is available to our awesome voters.\n "
+                    "Please take a moment to [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) to unlock this perk. \n"
+                    "As a bonus, Server Boosters and giveaway winners get to skip this step and enjoy all the tunes! <a:tadaMM:1258473486003732642> "
+                ),
+                color=discord.Color.dark_red()
             )
+            embed.set_author(name="Unlock This Feature!", icon_url=self.bot.user.display_avatar.url)
+            embed.set_footer(text="Thanks for your support!")
+            await interaction.followup.send(embed=embed, ephemeral=True)
             return
 
         player: wavelink.Player = interaction.guild.voice_client
@@ -1181,12 +1231,12 @@ class MusicCog(commands.Cog):
                                      icon_url=interaction.user.display_avatar.url)
                     await interaction.followup.send(embed=embed)
                 else:
-                    await interaction.followup.send("Lyrics not found.")
+                    await interaction.followup.send("Oops, I was unable to find lyrics for this song.")
             else:
                 error_message = response.get('error', 'Lyrics not found.')
-                await interaction.followup.send(f"An error occurred while fetching your lyrics: {error_message}")
+                await interaction.followup.send(f"Oops, I was unable to find lyrics for this song.")
         except Exception as e:
-            await interaction.followup.send(f"An error occurred while fetching your lyrics: {e}")
+            await interaction.followup.send(f"Oops, I was unable to find lyrics for this song.")
 
     @lyrics.error
     async def lyrics_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
