@@ -93,6 +93,7 @@ class HelpCog(commands.Cog):
                 "`/stop` - Stop the music and clear the queue.\n"
                 "`/jump [time]` - Jump to a specific time in the track.\n"
                 "`/loop [mode]` - Toggle loop mode for the current track or queue. \n"
+                "`/lyrics` - Displays the lyrics for the current song. \n"
                 "`/filters` - Select a filter to apply to the playback.\n"
                 "`/resetfilter` - Reset the currently applied filter(s).")
 

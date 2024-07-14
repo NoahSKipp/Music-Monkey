@@ -9,6 +9,8 @@ from discord import app_commands, Interaction, Embed, ButtonStyle, ui
 from discord.ext import commands, tasks
 import wavelink
 import logging
+
+import config
 import database as db
 from datetime import datetime, timedelta
 import asyncio
@@ -118,7 +120,58 @@ class MusicCog(commands.Cog):
         self.last_vote_reminder_time_per_guild = {}
         logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
-    # Function to check if the vote reminder should be sent for the guild
+    async def has_voted(self, user: discord.User, guild: discord.Guild) -> bool:
+        # Log guild and role checks
+        print(f"Checking vote status for user {user.id} in guild {guild.id}")
+
+        # Check if the command is used in the exempt guild
+        if guild.id == config.EXEMPT_GUILD_ID:
+            return True
+
+        # Check if the user has the exempt role in the exempt guild
+        exempt_guild = self.bot.get_guild(config.EXEMPT_GUILD_ID)
+        if not exempt_guild:
+            try:
+                exempt_guild = await self.bot.fetch_guild(config.EXEMPT_GUILD_ID)
+            except discord.NotFound:
+                return False
+            except discord.Forbidden:
+                return False
+            except Exception as e:
+                return False
+
+        try:
+            exempt_member = await exempt_guild.fetch_member(user.id)
+            if exempt_member:
+                roles = [role.id for role in exempt_member.roles]
+                print(f"Exempt member found in exempt guild with roles: {roles}")
+                if config.EXEMPT_ROLE_ID in roles:
+                    print(
+                        f"User {user.id} has the exempt role {config.EXEMPT_ROLE_ID} in exempt guild {config.EXEMPT_GUILD_ID}.")
+                    return True
+        except discord.NotFound:
+            return False
+        except discord.Forbidden:
+            return False
+        except Exception as e:
+            return False
+
+        # If not exempt by guild or role, check vote status on Top.gg
+        url = f"https://top.gg/api/bots/{config.BOT_ID}/check?userId={user.id}"
+        headers = {
+            "Authorization": f"Bearer {config.TOPGG_TOKEN}",
+            "X-Auth-Key": config.AUTHORIZATION_KEY
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    voted = data.get("voted") == 1
+                    return voted
+                else:
+                    return False
+
     async def vote_reminder(self, interaction: Interaction):
         guild_id = str(interaction.guild_id)
         current_time = datetime.now()
@@ -131,12 +184,10 @@ class MusicCog(commands.Cog):
             await self.send_vote_reminder(interaction)
             self.last_vote_reminder_time_per_guild[guild_id] = current_time
 
-    # Sets up a vote reminder embed
     async def send_vote_reminder(self, interaction):
         embed = Embed(
             title="Support Us by Voting!",
-            description="🌟 Your votes help keep the bot free and continuously improving. Please take a moment to "
-                        "support us!",
+            description="🌟 Your votes help keep the bot free and continuously improving. Please take a moment to support us!",
             color=discord.Color.green()
         )
         embed.add_field(name="Vote Here", value="[Vote on Top.gg](https://top.gg/bot/1228071177239531620/vote)")
@@ -144,7 +195,6 @@ class MusicCog(commands.Cog):
         embed.set_footer(text="Thank you for your support! Your votes make a big difference!")
         await interaction.followup.send(embed=embed, ephemeral=False)
 
-    # Common error handler for commands
     async def error_handler(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         if isinstance(error, app_commands.CommandOnCooldown):
             await interaction.response.send_message(
@@ -157,68 +207,43 @@ class MusicCog(commands.Cog):
                 ephemeral=True
             )
 
-    # Cog listener to catch changes in the voice state
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
         logging.debug("Voice state update triggered.")
 
-        # Get the voice client for the guild
         voice_state = member.guild.voice_client
 
-        # If there is no voice client, or it's not an instance of wavelink.Player, return
         if voice_state is None or not isinstance(voice_state, wavelink.Player):
             return
 
-        # Check if the bot is alone in the voice channel
         if len(voice_state.channel.members) == 1:
             try:
-                # Wait for 10 seconds to confirm inactivity
                 await asyncio.sleep(10)
-
-                # Check again if the bot is still alone in the channel
                 if len(voice_state.channel.members) == 1:
-                    # Retrieve the text channel to send the inactivity message
-                    # Ensure interaction_channel_id is correctly set in your player instance
                     text_channel = self.bot.get_channel(voice_state.interaction_channel_id)
-
-                    # Send inactivity message if possible
                     if text_channel:
                         await self.send_inactivity_message(text_channel)
 
-                    # Disconnect the bot and clean up
                     logging.debug("Setting was_forcefully_stopped flag to True for inactivity.")
-                    voice_state.was_forcefully_stopped = True  # Set the flag before disconnecting
+                    voice_state.was_forcefully_stopped = True
                     await self.disconnect_and_cleanup(voice_state)
-
             except asyncio.CancelledError:
                 logging.warning("Inactivity check was cancelled.")
-                # Handle the cancellation gracefully
 
-    # Checks for the user and the associated voice channel
     async def user_in_voice(self, interaction):
-        # Check if the user is in the same voice channel as the bot
         member = interaction.user
         return member.voice and member.voice.channel == interaction.guild.voice_client.channel if interaction.guild.voice_client else False
 
-    # Checks if the user has the required permissions to engage with playback commands/buttons
     async def interaction_check(self, interaction: discord.Interaction):
         logging.debug(f'Interaction check for {interaction.user} in guild {interaction.guild_id}')
-
-        # Check if the given guild is stored in the db.
         await db.enter_guild(interaction.guild_id)
-
-        # Check if the given user is stored in the database for this guild.
         await db.enter_user(interaction.user.id, interaction.guild_id)
-
-        # Retrieve the DJ-only mode status and DJ role ID from the database
         dj_only = await db.get_dj_only_enabled(interaction.guild_id)
         dj_role_id = await db.get_dj_role(interaction.guild_id)
 
-        # If DJ-only mode is not enabled, allow all interactions
         if not dj_only:
             return True
 
-        # Check if the user has manage_roles permission or the specific DJ role
         has_permissions = interaction.user.guild_permissions.manage_roles
         is_dj = any(role.id == dj_role_id for role in interaction.user.roles)
 
@@ -231,24 +256,20 @@ class MusicCog(commands.Cog):
         )
         return False
 
-    # Cog listener to check if the node is ready
     @commands.Cog.listener()
     async def on_wavelink_node_ready(self, payload: wavelink.NodeReadyEventPayload):
         print(f'Node {payload.node.identifier} is ready!')
 
-    # Cog listener to check if the player is currently inactive
     @commands.Cog.listener()
     async def on_wavelink_inactive_player(self, player: wavelink.Player):
-        # Ensure that the player is still connected before sending the message and disconnecting
         if player and hasattr(player, 'interaction_channel_id'):
             channel = self.bot.get_channel(player.interaction_channel_id)
             if channel:
                 await self.send_inactivity_message(channel)
         print("Setting was_forcefully_stopped flag to True for inactivity.")
-        player.was_forcefully_stopped = True  # Set the flag before disconnecting
+        player.was_forcefully_stopped = True
         await self.disconnect_and_cleanup(player)
 
-    # Sets up an inactivity message
     async def send_inactivity_message(self, channel: discord.TextChannel):
         try:
             embed = discord.Embed(
@@ -266,7 +287,6 @@ class MusicCog(commands.Cog):
         except Exception as e:
             logging.error(f"Unexpected error when sending inactivity message: {e}")
 
-    # Stop the playback, disconnects from the voice channel and cleans the "Now Playing" message
     async def disconnect_and_cleanup(self, player: wavelink.Player):
         try:
             await player.stop()
@@ -282,34 +302,27 @@ class MusicCog(commands.Cog):
         except Exception as e:
             logging.error(f"Error during disconnect and cleanup: {e}")
         finally:
-            player.was_forcefully_stopped = False  # Reset the flag after cleanup
+            player.was_forcefully_stopped = False
 
-    # Cog listener to react to a track starting and grab the info necessary for further functions
     @commands.Cog.listener()
     async def on_wavelink_track_start(self, payload: wavelink.TrackStartEventPayload):
         player: wavelink.Player = payload.player
         player.inactive_timeout = 10
         track: wavelink.Playable = payload.track
 
-        # Attempt to fetch the requester user object
         requester_id = getattr(track.extras, 'requester_id', None)
         requester = None
         if requester_id:
             try:
                 requester = await self.bot.fetch_user(requester_id)
             except discord.NotFound:
-                # If the user can't be found, fall back to "AutoPlay"
-                # Note: There is no situation in which a message is displayed without a valid requester_id stored,
-                # other than when the song is played via the AutoPlay function of wavelink
                 requester = None
             except Exception as e:
                 logging.error(f"Failed to fetch user {requester_id}: {e}")
                 requester = None
 
-        # Formatting the duration using the helper function
         duration = format_duration(track.length)
 
-        # Sets up the "Now Playing" embed message
         embed = discord.Embed(
             title="Now Playing",
             description=f"**{track.title}** by `{track.author}`\nRequested by: {requester.display_name if requester else 'AutoPlay'}\nDuration: {duration}",
@@ -318,11 +331,9 @@ class MusicCog(commands.Cog):
         if track.artwork:
             embed.set_image(url=track.artwork)
 
-        # Ensure the interaction channel ID is set
         if hasattr(player, 'interaction_channel_id'):
             channel = self.bot.get_channel(player.interaction_channel_id)
             if channel:
-                # Update or create the Now Playing message
                 if hasattr(player, 'now_playing_message') and player.now_playing_message:
                     try:
                         await player.now_playing_message.edit(embed=embed, view=player.now_playing_view)
@@ -341,17 +352,15 @@ class MusicCog(commands.Cog):
         else:
             logging.error("Interaction channel ID not set on player.")
 
-    # Cog listener to react to a track ending and start followup steps
     @commands.Cog.listener()
     async def on_wavelink_track_end(self, payload: wavelink.TrackEndEventPayload):
         player: wavelink.Player = payload.player
 
         if player:
-            # Check if the player was manually stopped or disconnected due to inactivity
             if getattr(player, 'was_forcefully_stopped', False):
                 logging.debug(
                     "Player was manually stopped or disconnected due to inactivity. Skipping auto-play of next track.")
-                player.was_forcefully_stopped = False  # Reset the flag
+                player.was_forcefully_stopped = False
                 return
 
             try:
@@ -362,7 +371,6 @@ class MusicCog(commands.Cog):
 
                 if player.queue.mode == wavelink.QueueMode.loop_all and player.queue.is_empty:
                     logging.debug("Looping entire queue.")
-                    # Refill the queue with the original tracks if empty
                     if not hasattr(player.queue, 'original_tracks') or not player.queue.original_tracks:
                         player.queue.original_tracks = player.queue.history.copy()
                     for track in player.queue.original_tracks:
@@ -372,14 +380,11 @@ class MusicCog(commands.Cog):
                 logging.debug(f"Playing next track: {next_track.title}")
                 await player.play(next_track)
 
-                # Retrieve the requester ID
                 requester_id = getattr(next_track.extras, 'requester_id', None)
                 requester = await self.bot.fetch_user(requester_id) if requester_id else "AutoPlay"
 
-                # Formats the track length for easier readability
                 duration = format_duration(next_track.length)
 
-                # Sets up the "Now Playing" embed for the following songs
                 embed = discord.Embed(
                     title="Now Playing",
                     description=f"**{next_track.title}** by `{next_track.author}`\nRequested by: {requester.display_name if requester_id else 'AutoPlay'}\nDuration: {duration}",
@@ -388,7 +393,6 @@ class MusicCog(commands.Cog):
                 if next_track.artwork:
                     embed.set_image(url=next_track.artwork)
 
-                # Edits the existing "Now Playing" message (if one exists)
                 if hasattr(player, 'now_playing_message') and player.now_playing_message:
                     try:
                         await player.now_playing_message.edit(embed=embed)
@@ -399,7 +403,6 @@ class MusicCog(commands.Cog):
                     except discord.HTTPException as e:
                         logging.error(f"Failed to edit message due to an HTTP error: {e}")
                 else:
-                    # If no existing message to edit or message was deleted, send a new one
                     channel = self.bot.get_channel(player.interaction_channel_id)
                     if channel:
                         player.now_playing_message = await channel.send(embed=embed)
@@ -427,16 +430,12 @@ class MusicCog(commands.Cog):
                     if channel:
                         player.now_playing_message = await channel.send(embed=embed)
 
-    # Sets up the player queue display
     async def display_queue(self, interaction: discord.Interaction, page: int, edit=False):
-        # Gets the player object of the bot in the current guild's voice channel
         player = interaction.guild.voice_client
-        # If there's no player, no player queue or an empty player queue, displays a message
         if not player or not player.queue or player.queue.is_empty:
             await interaction.response.send_message("The queue is empty.")
             return
 
-        # Setting the parameters for the queue embed
         items_per_page = 10
         total_pages = (len(player.queue) + items_per_page - 1) // items_per_page
         start_index = (page - 1) * items_per_page
@@ -456,8 +455,7 @@ class MusicCog(commands.Cog):
         else:
             await interaction.response.send_message(embed=embed, view=view, ephemeral=False)
 
-    # Command to trigger the DJ-only playback mode
-    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
+    @discord.app_commands.checks.cooldown(1, 3)
     @app_commands.command(name='dj', description='Toggle DJ-only command restrictions')
     async def toggle_dj_mode(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
@@ -475,12 +473,10 @@ class MusicCog(commands.Cog):
 
         await interaction.followup.send(f'DJ-only mode is now {"enabled" if new_state else "disabled"}.')
 
-    # Command to select a DJ role
-    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
+    @discord.app_commands.checks.cooldown(1, 3)
     @app_commands.command(name='setdj', description='Set a DJ role')
     async def set_dj_role(self, interaction: discord.Interaction):
-        await interaction.response.defer(
-            ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
         if not interaction.user.guild_permissions.manage_roles:
             await interaction.followup.send(
                 "You do not have the required permissions to use this command.",
@@ -496,10 +492,8 @@ class MusicCog(commands.Cog):
         view = SelectRoleView(options, interaction.user.id)
         await interaction.followup.send("Please select a DJ role from the menu:", view=view, ephemeral=True)
 
-        # Wait for the user's selection
         await view.wait()
 
-        # Update the DJ role in the database
         if view.values:
             selected_role_id = int(view.values[0])
             await db.set_dj_role(interaction.guild_id, selected_role_id)
@@ -507,50 +501,66 @@ class MusicCog(commands.Cog):
         else:
             await interaction.followup.send("No DJ role selected.")
 
-    # Command to engage playback with a given query
-    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
+    @discord.app_commands.checks.cooldown(1, 3)
     @app_commands.command(name='play', description='Play or queue a song from a URL or search term')
     @app_commands.describe(query='URL or search term of the song to play')
     async def play(self, interaction: Interaction, query: str):
         try:
             await interaction.response.defer(ephemeral=False)
 
-            # Check if the bot is not connected to any voice channel
             if not interaction.guild.voice_client:
-                # Ensure the user is in a voice channel
                 if not interaction.user.voice or not interaction.user.voice.channel:
                     await interaction.followup.send("You must be in a voice channel to use this command.",
                                                     ephemeral=True)
                     return
             else:
-                # Ensure the user is in the same voice channel as the bot
                 if not await self.user_in_voice(interaction):
                     await interaction.followup.send(
                         "You must be in the same voice channel as the bot to use this command.", ephemeral=True)
                     return
 
-            # Call the play_song method to handle the rest
             await self.play_song(interaction, query)
         except discord.errors.NotFound:
             logging.error("Interaction not found or expired.")
         except Exception as e:
             logging.error(f"Unexpected error: {e}")
 
-    # Finds and plays a song based off of the given query.
     async def play_song(self, interaction: Interaction, query: str):
         try:
             await self.vote_reminder(interaction)
-            results = await wavelink.Playable.search(query)
+
+            if query.startswith("https://") or query.startswith("http://"):
+                results = await wavelink.Playable.search(query)
+            else:
+                results = await wavelink.Playable.search(query, source=wavelink.enums.TrackSource.YouTube)
+
             if not results:
                 await interaction.followup.send('No tracks found with that query.', ephemeral=True)
                 return
+
+            track = results[0]
+
+            if "youtube.com" not in track.uri and "youtu.be" not in track.uri:
+                if not await self.has_voted(interaction.user, interaction.guild):
+                    embed = discord.Embed(
+                        description=(
+                            "Playing tracks from sources other than YouTube is a special feature just for our awesome voters.\n "
+                            "Please take a moment to [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) to unlock this perk. \n"
+                            "As a bonus, Server Boosters and giveaway winners get to skip this step and enjoy all the tunes! <a:tadaMM:1258473486003732642> "
+                        ),
+                        color=discord.Color.dark_red()
+                    )
+                    embed.set_author(name="Unlock This Feature!", icon_url=self.bot.user.display_avatar.url)
+                    embed.set_footer(text="Thanks for your support!")
+                    await interaction.followup.send(embed=embed, ephemeral=True)
+                    return
 
             channel = interaction.user.voice.channel if interaction.user and interaction.user.voice else None
             if not channel:
                 await interaction.followup.send("You must be in a voice channel to play music.", ephemeral=True)
                 return
 
-            node = wavelink.Pool.get_node()
+            node = wavelink.Pool.get_node
             if node is None:
                 await interaction.followup.send("No node available. Please try again later.", ephemeral=True)
                 return
@@ -608,7 +618,7 @@ class MusicCog(commands.Cog):
     async def skip(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
                                             ephemeral=True)
             return
 
@@ -639,7 +649,7 @@ class MusicCog(commands.Cog):
     async def pause(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
                                             ephemeral=True)
             return
 
@@ -664,7 +674,7 @@ class MusicCog(commands.Cog):
     async def resume(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
                                             ephemeral=True)
             return
 
@@ -691,7 +701,7 @@ class MusicCog(commands.Cog):
         logging.debug("Stop command received.")
         await interaction.response.defer(ephemeral=True)  # Signal to Discord that more time is needed to process
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
                                             ephemeral=True)
             return
 
@@ -725,7 +735,7 @@ class MusicCog(commands.Cog):
     async def clear(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
                                             ephemeral=True)
             return
 
@@ -747,8 +757,23 @@ class MusicCog(commands.Cog):
                           description='Remove tracks from the queue requested by users not in the voice channel')
     async def cleargone(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=False)
+
+        if not await self.has_voted(interaction.user, interaction.guild):
+            embed = discord.Embed(
+                description=(
+                    "This feature is available to our awesome voters.\n "
+                    "Please take a moment to [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) to unlock this perk. \n"
+                    "As a bonus, Server Boosters and giveaway winners get to skip this step and enjoy all the tunes! <a:tadaMM:1258473486003732642> "
+                ),
+                color=discord.Color.dark_red()
+            )
+            embed.set_author(name="Unlock This Feature!", icon_url=self.bot.user.display_avatar.url)
+            embed.set_footer(text="Thanks for your support!")
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
+
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
                                             ephemeral=True)
             return
 
@@ -783,7 +808,7 @@ class MusicCog(commands.Cog):
         await interaction.response.defer(ephemeral=False)
 
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
                                             ephemeral=True)
             return
 
@@ -826,7 +851,7 @@ class MusicCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
                                             ephemeral=True)
             return
 
@@ -858,7 +883,7 @@ class MusicCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
                                             ephemeral=True)
             return
 
@@ -892,7 +917,7 @@ class MusicCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
                                             ephemeral=True)
             return
 
@@ -926,7 +951,7 @@ class MusicCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
                                             ephemeral=True)
             return
 
@@ -966,7 +991,7 @@ class MusicCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         if not await self.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
                                             ephemeral=True)
             return
 
@@ -1094,7 +1119,7 @@ class MusicCog(commands.Cog):
 
         channel = interaction.user.voice.channel if interaction.user and interaction.user.voice else None
         if not channel:
-            await interaction.followup.send("You must be in the same voice channel as me to use this command..",
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
                                             ephemeral=True)
             return
 
@@ -1169,7 +1194,21 @@ class MusicCog(commands.Cog):
     @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name='lyrics', description='Fetch lyrics for the current playing track')
     async def lyrics(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=False)
+        await interaction.response.defer(ephemeral=True)
+
+        if not await self.has_voted(interaction.user, interaction.guild):
+            embed = discord.Embed(
+                description=(
+                    "This feature is available to our awesome voters.\n "
+                    "Please take a moment to [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) to unlock this perk. \n"
+                    "As a bonus, Server Boosters and giveaway winners get to skip this step and enjoy all the tunes! <a:tadaMM:1258473486003732642> "
+                ),
+                color=discord.Color.dark_red()
+            )
+            embed.set_author(name="Unlock This Feature!", icon_url=self.bot.user.display_avatar.url)
+            embed.set_footer(text="Thanks for your support!")
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
 
         player: wavelink.Player = interaction.guild.voice_client
         if not player or not player.connected:
@@ -1192,16 +1231,17 @@ class MusicCog(commands.Cog):
                                      icon_url=interaction.user.display_avatar.url)
                     await interaction.followup.send(embed=embed)
                 else:
-                    await interaction.followup.send("Lyrics not found.")
+                    await interaction.followup.send("Oops, I was unable to find lyrics for this song.")
             else:
                 error_message = response.get('error', 'Lyrics not found.')
-                await interaction.followup.send(f"Failed to fetch lyrics: {error_message}")
+                await interaction.followup.send(f"Oops, I was unable to find lyrics for this song.")
         except Exception as e:
-            await interaction.followup.send(f"An error occurred while fetching lyrics: {str(e)}")
+            await interaction.followup.send(f"Oops, I was unable to find lyrics for this song.")
 
     @lyrics.error
     async def lyrics_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         await self.error_handler(interaction, error)
+
 
 # Set up and add the view class for the filter selection
 class FilterSelectView(discord.ui.View):
@@ -1337,7 +1377,7 @@ class MusicButtons(ui.View):
     @ui.button(label='VOL +', style=ButtonStyle.green, custom_id='vol_up_button')
     async def volume_up(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in the same voice channel as me to use this command..",
+            await interaction.response.send_message("You must be in the same voice channel as me to use this command.",
                                                     ephemeral=True)
             return
         new_volume = min(self.player.volume + 10, 100)  # Volume should not exceed 100
@@ -1348,7 +1388,7 @@ class MusicButtons(ui.View):
     @ui.button(label='PAUSE', style=ButtonStyle.blurple, custom_id='pause_button')
     async def pause(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in the same voice channel as me to use this command..",
+            await interaction.response.send_message("You must be in the same voice channel as me to use this command.",
                                                     ephemeral=True)
             return
         # Check the current paused state directly from the player and toggle it
@@ -1366,7 +1406,7 @@ class MusicButtons(ui.View):
     @ui.button(label='VOL -', style=ButtonStyle.green, custom_id='vol_down_button')
     async def volume_down(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in the same voice channel as me to use this command..",
+            await interaction.response.send_message("You must be in the same voice channel as me to use this command.",
                                                     ephemeral=True)
             return
         new_volume = max(self.player.volume - 10, 0)  # Volume should not go below 0
@@ -1377,7 +1417,7 @@ class MusicButtons(ui.View):
     @ui.button(label='SKIP', style=ButtonStyle.green, custom_id='skip_button')
     async def skip(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in the same voice channel as me to use this command..",
+            await interaction.response.send_message("You must be in the same voice channel as me to use this command.",
                                                     ephemeral=True)
             return
         await self.player.skip()
@@ -1387,7 +1427,7 @@ class MusicButtons(ui.View):
     @ui.button(label='LOOP', style=ButtonStyle.green, custom_id='loop_button')
     async def toggle_loop(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in the same voice channel as me to use this command..",
+            await interaction.response.send_message("You must be in the same voice channel as me to use this command.",
                                                     ephemeral=True)
             return
 
@@ -1414,7 +1454,7 @@ class MusicButtons(ui.View):
     @ui.button(label='REWIND', style=ButtonStyle.green, custom_id='rewind_button')
     async def rewind(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in the same voice channel as me to use this command..",
+            await interaction.response.send_message("You must be in the same voice channel as me to use this command.",
                                                     ephemeral=True)
             return
         # Calculate the new position, ensuring it does not fall below zero
@@ -1426,7 +1466,7 @@ class MusicButtons(ui.View):
     @ui.button(label='STOP', style=ButtonStyle.red, custom_id='stop_button')
     async def stop_music(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in the same voice channel as me to use this command..",
+            await interaction.response.send_message("You must be in the same voice channel as me to use this command.",
                                                     ephemeral=True)
             return
 
@@ -1460,7 +1500,7 @@ class MusicButtons(ui.View):
     @ui.button(label='FORWARD', style=ButtonStyle.green, custom_id='forward_button')
     async def forward(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in the same voice channel as me to use this command..",
+            await interaction.response.send_message("You must be in the same voice channel as me to use this command.",
                                                     ephemeral=True)
             return
         # Calculate the new position, ensuring it does not exceed the track's duration
@@ -1472,7 +1512,7 @@ class MusicButtons(ui.View):
     @ui.button(label='AUTOPLAY', style=ButtonStyle.green, custom_id='autoplay_button')
     async def toggle_autoplay(self, interaction: Interaction, button: ui.Button):
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in the same voice channel as me to use this command..",
+            await interaction.response.send_message("You must be in the same voice channel as me to use this command.",
                                                     ephemeral=True)
             return
         # If autoplay is disabled, enable it and change button label

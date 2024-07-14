@@ -11,10 +11,10 @@ import google.generativeai as genai
 import logging
 import config
 import wavelink
+import aiohttp
 
 # API key for Google Gemini
 genai.configure(api_key=config.GEMINI)
-
 
 class RecommendCog(commands.Cog):
     def __init__(self, bot):
@@ -22,9 +22,76 @@ class RecommendCog(commands.Cog):
         self.bot = bot
         discord.utils.setup_logging(level=logging.INFO)
 
+    async def has_voted(self, user: discord.User, guild: discord.Guild) -> bool:
+        # Log guild and role checks
+        print(f"Checking vote status for user {user.id} in guild {guild.id}")
+
+        # Check if the command is used in the exempt guild
+        if guild.id == config.EXEMPT_GUILD_ID:
+            return True
+
+        # Check if the user has the exempt role in the exempt guild
+        exempt_guild = self.bot.get_guild(config.EXEMPT_GUILD_ID)
+        if not exempt_guild:
+            try:
+                exempt_guild = await self.bot.fetch_guild(config.EXEMPT_GUILD_ID)
+            except discord.NotFound:
+                return False
+            except discord.Forbidden:
+                return False
+            except Exception as e:
+                return False
+
+        try:
+            exempt_member = await exempt_guild.fetch_member(user.id)
+            if exempt_member:
+                roles = [role.id for role in exempt_member.roles]
+                print(f"Exempt member found in exempt guild with roles: {roles}")
+                if config.EXEMPT_ROLE_ID in roles:
+                    print(
+                        f"User {user.id} has the exempt role {config.EXEMPT_ROLE_ID} in exempt guild {config.EXEMPT_GUILD_ID}.")
+                    return True
+        except discord.NotFound:
+            return False
+        except discord.Forbidden:
+            return False
+        except Exception as e:
+            return False
+
+        # If not exempt by guild or role, check vote status on Top.gg
+        url = f"https://top.gg/api/bots/{config.BOT_ID}/check?userId={user.id}"
+        headers = {
+            "Authorization": f"Bearer {config.TOPGG_TOKEN}",
+            "X-Auth-Key": config.AUTHORIZATION_KEY
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    voted = data.get("voted") == 1
+                    return voted
+                else:
+                    return False
+
     @app_commands.command(name='recommend', description='Get song recommendations based on the current queue.')
     async def recommend(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)  # This will signal to Discord that more time is needed
+        await interaction.response.defer(ephemeral=True)  # Defer the interaction first
+
+        if not await self.has_voted(interaction.user, interaction.guild):
+            embed = discord.Embed(
+                description=(
+                    "This feature is available to our awesome voters.\n "
+                    "Please take a moment to [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) to unlock this perk. \n"
+                    "As a bonus, Server Boosters and giveaway winners get to skip this step and enjoy all the tunes! <a:tadaMM:1258473486003732642> "
+                ),
+                color=discord.Color.dark_red()
+            )
+            embed.set_author(name="Unlock This Feature!", icon_url=self.bot.user.display_avatar.url)
+            embed.set_footer(text="Thanks for your support!")
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
+
         player = interaction.guild.voice_client
         if not player or not wavelink.Player.connected or wavelink.Player.current is None:
             await interaction.followup.send("No music is currently playing.", ephemeral=True)
