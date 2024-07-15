@@ -12,7 +12,6 @@ import wavelink
 import aiohttp
 import config
 import logging
-from music import MusicCog
 
 
 # This function provides autocomplete suggestions for playlist names based on the current input
