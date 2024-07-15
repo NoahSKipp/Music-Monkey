@@ -45,6 +45,8 @@ class HelpCog(commands.Cog):
                 discord.SelectOption(label='Playback Commands',
                                      description='Control the music playback', emoji='▶️'),
                 discord.SelectOption(label='Queue Management', description='Manage your music queue', emoji='📋'),
+                discord.SelectOption(label='Playlist Management',
+                                     description='Manage your playlists', emoji='🎵'),
                 discord.SelectOption(label='Settings and Configuration',
                                      description='Customize bot settings', emoji='⚙️'),
                 discord.SelectOption(label='Community and Profiles',
@@ -69,6 +71,7 @@ class HelpCog(commands.Cog):
         description_map = {
             'Playback Commands': self.get_playback_commands(),
             'Queue Management': self.get_queue_management_commands(),
+            'Playlist Management': self.get_playlist_management_commands(),
             'Settings and Configuration': self.get_settings_commands(),
             'Community and Profiles': self.get_community_and_profiles_info(),
             'Music Recommendations': self.get_music_recommendations(),
@@ -107,6 +110,20 @@ class HelpCog(commands.Cog):
                 "`/cleargone` - Clear all songs from the queue that were requested by users who have since left the voice channel.\n"
                 "`/autoplay [mode]` - Toggle AutoPlay mode to automatically continue playing songs when the queue is empty.")
 
+    def get_playlist_management_commands(self):
+        return ("**Playlist Management Commands:**\n"
+                "`/playlist create [name] [privacy]` - Create a new playlist with the specified name and privacy setting.\n"
+                "`/playlist add [name] [query]` - Add a song to the specified playlist.\n"
+                "`/playlist play [name]` - Play all songs from the specified playlist.\n"
+                "`/playlist view [name]` - View the contents of the specified playlist.\n"
+                "`/playlist guildview` - View all playlists created in the current server.\n"
+                "`/playlist remove [name] [query]` - Remove a song from the specified playlist.\n"
+                "`/playlist dedupe [name]` - Remove duplicate songs from the specified playlist.\n"
+                "`/playlist edit [name]` - Edit the settings of the specified playlist.\n"
+                "`/playlist delete [name]` - Delete the specified playlist.\n"
+                "`/playlist invite [name] [user]` - Invite a user to collaborate on the specified playlist.\n"
+                "`/playlist invites` - View your playlist invites.")
+
     def get_settings_commands(self):
         return ("**Settings and Configuration Commands:**\n"
                 "`/dj` - Toggle DJ-only command restrictions.\n"
@@ -143,4 +160,3 @@ class HelpCog(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(HelpCog(bot))
-

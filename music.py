@@ -9,7 +9,6 @@ from discord import app_commands, Interaction, Embed, ButtonStyle, ui
 from discord.ext import commands, tasks
 import wavelink
 import logging
-
 import config
 import database as db
 from datetime import datetime, timedelta
@@ -430,12 +429,17 @@ class MusicCog(commands.Cog):
                     if channel:
                         player.now_playing_message = await channel.send(embed=embed)
 
+    # Sets up the player queue display
+
     async def display_queue(self, interaction: discord.Interaction, page: int, edit=False):
+        # Gets the player object of the bot in the current guild's voice channel
         player = interaction.guild.voice_client
+        # If there's no player, no player queue or an empty player queue, displays a message
         if not player or not player.queue or player.queue.is_empty:
             await interaction.response.send_message("The queue is empty.")
             return
 
+        # Setting the parameters for the queue embed
         items_per_page = 10
         total_pages = (len(player.queue) + items_per_page - 1) // items_per_page
         start_index = (page - 1) * items_per_page
@@ -546,9 +550,9 @@ class MusicCog(commands.Cog):
                         description=(
                             "Playing tracks from sources other than YouTube is a special feature just for our awesome voters.\n "
                             "Please take a moment to [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) to unlock this perk. \n"
-                            "As a bonus, Server Boosters and giveaway winners get to skip this step and enjoy all the tunes! <a:tadaMM:1258473486003732642> "
+                            "As a bonus, Server Boosters and active members of [our community](https://discord.gg/6WqKtrXjhn) get to skip this step and enjoy all the tunes! <a:tadaMM:1258473486003732642> "
                         ),
-                        color=discord.Color.dark_red()
+                        color=discord.Color.green()
                     )
                     embed.set_author(name="Unlock This Feature!", icon_url=self.bot.user.display_avatar.url)
                     embed.set_footer(text="Thanks for your support!")
@@ -721,7 +725,6 @@ class MusicCog(commands.Cog):
     @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name='queue', description='Show the current music queue')
     async def show_queue(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
         await self.display_queue(interaction, 1)
 
     # Handles command execution errors and delegates to the error_handler
@@ -763,9 +766,9 @@ class MusicCog(commands.Cog):
                 description=(
                     "This feature is available to our awesome voters.\n "
                     "Please take a moment to [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) to unlock this perk. \n"
-                    "As a bonus, Server Boosters and giveaway winners get to skip this step and enjoy all the tunes! <a:tadaMM:1258473486003732642> "
+                    "As a bonus, Server Boosters and active members of [our community](https://discord.gg/6WqKtrXjhn) get to skip this step and enjoy all the tunes! <a:tadaMM:1258473486003732642> "
                 ),
-                color=discord.Color.dark_red()
+                color=discord.Color.green()
             )
             embed.set_author(name="Unlock This Feature!", icon_url=self.bot.user.display_avatar.url)
             embed.set_footer(text="Thanks for your support!")
@@ -916,6 +919,21 @@ class MusicCog(commands.Cog):
     async def autoplay(self, interaction: discord.Interaction, mode: str):
         await interaction.response.defer(ephemeral=True)
 
+        if not await self.has_voted(interaction.user, interaction.guild):
+            embed = discord.Embed(
+                title="Unlock This Feature!",
+                description=(
+                    "Hey there, music lover! 🎶 This feature is available to our awesome voters. "
+                    "Please [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) "
+                    "to unlock this perk. Server Boosters and active members of [our community](https://discord.gg/6WqKtrXjhn) get to skip this step! <a:tadaMM:1258473486003732642>"
+                ),
+                color=discord.Color.green()
+            )
+            embed.set_author(name="Music Monkey", icon_url=self.bot.user.display_avatar.url)
+            embed.set_footer(text="Thanks for your support!")
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
+
         if not await self.user_in_voice(interaction):
             await interaction.followup.send("You must be in the same voice channel as me to use this command.",
                                             ephemeral=True)
@@ -949,6 +967,21 @@ class MusicCog(commands.Cog):
     ])
     async def loop(self, interaction: discord.Interaction, mode: app_commands.Choice[str]):
         await interaction.response.defer(ephemeral=True)
+
+        if not await self.has_voted(interaction.user, interaction.guild):
+            embed = discord.Embed(
+                title="Unlock This Feature!",
+                description=(
+                    "Hey there, music lover! 🎶 This feature is available to our awesome voters. "
+                    "Please [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) "
+                    "to unlock this perk. Server Boosters and active members of [our community](https://discord.gg/6WqKtrXjhn) get to skip this step! <a:tadaMM:1258473486003732642>"
+                ),
+                color=discord.Color.green()
+            )
+            embed.set_author(name="Music Monkey", icon_url=self.bot.user.display_avatar.url)
+            embed.set_footer(text="Thanks for your support!")
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
 
         if not await self.user_in_voice(interaction):
             await interaction.followup.send("You must be in the same voice channel as me to use this command.",
@@ -1201,9 +1234,9 @@ class MusicCog(commands.Cog):
                 description=(
                     "This feature is available to our awesome voters.\n "
                     "Please take a moment to [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) to unlock this perk. \n"
-                    "As a bonus, Server Boosters and giveaway winners get to skip this step and enjoy all the tunes! <a:tadaMM:1258473486003732642> "
+                    "As a bonus, Server Boosters and active members of [our community](https://discord.gg/6WqKtrXjhn) get to skip this step and enjoy all the tunes! <a:tadaMM:1258473486003732642> "
                 ),
-                color=discord.Color.dark_red()
+                color=discord.Color.green()
             )
             embed.set_author(name="Unlock This Feature!", icon_url=self.bot.user.display_avatar.url)
             embed.set_footer(text="Thanks for your support!")
@@ -1363,6 +1396,58 @@ class MusicButtons(ui.View):
         )
         return False
 
+    async def has_voted(self, user: discord.User, guild: discord.Guild) -> bool:
+        # Log guild and role checks
+        print(f"Checking vote status for user {user.id} in guild {guild.id}")
+
+        # Check if the command is used in the exempt guild
+        if guild.id == config.EXEMPT_GUILD_ID:
+            return True
+
+        # Check if the user has the exempt role in the exempt guild
+        exempt_guild = self.bot.get_guild(config.EXEMPT_GUILD_ID)
+        if not exempt_guild:
+            try:
+                exempt_guild = await self.bot.fetch_guild(config.EXEMPT_GUILD_ID)
+            except discord.NotFound:
+                return False
+            except discord.Forbidden:
+                return False
+            except Exception as e:
+                return False
+
+        try:
+            exempt_member = await exempt_guild.fetch_member(user.id)
+            if exempt_member:
+                roles = [role.id for role in exempt_member.roles]
+                print(f"Exempt member found in exempt guild with roles: {roles}")
+                if config.EXEMPT_ROLE_ID in roles:
+                    print(
+                        f"User {user.id} has the exempt role {config.EXEMPT_ROLE_ID} in exempt guild {config.EXEMPT_GUILD_ID}.")
+                    return True
+        except discord.NotFound:
+            return False
+        except discord.Forbidden:
+            return False
+        except Exception as e:
+            return False
+
+        # If not exempt by guild or role, check vote status on Top.gg
+        url = f"https://top.gg/api/bots/{config.BOT_ID}/check?userId={user.id}"
+        headers = {
+            "Authorization": f"Bearer {config.TOPGG_TOKEN}",
+            "X-Auth-Key": config.AUTHORIZATION_KEY
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    voted = data.get("voted") == 1
+                    return voted
+                else:
+                    return False
+
     # Sets up queue button
     @ui.button(label='QUEUE', style=ButtonStyle.green, custom_id='queue_button')
     async def show_queue(self, interaction: Interaction, button: ui.Button):
@@ -1376,20 +1461,38 @@ class MusicButtons(ui.View):
     # Sets up buttons for volume increase
     @ui.button(label='VOL +', style=ButtonStyle.green, custom_id='vol_up_button')
     async def volume_up(self, interaction: Interaction, button: ui.Button):
+        await interaction.response.defer(ephemeral=True)
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in the same voice channel as me to use this command.",
-                                                    ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
+                                            ephemeral=True)
             return
+
+        if not await self.cog.has_voted(interaction.user, interaction.guild):
+            embed = discord.Embed(
+                title="Unlock This Feature!",
+                description=(
+                    "Hey there, music lover! 🎶 This feature is available to our awesome voters. "
+                    "Please [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) "
+                    "to unlock this perk. Server Boosters and active members of [our community](https://discord.gg/6WqKtrXjhn) get to skip this step! <a:tadaMM:1258473486003732642>"
+                ),
+                color=discord.Color.green()
+            )
+            embed.set_author(name="Music Monkey", icon_url=self.cog.bot.user.display_avatar.url)
+            embed.set_footer(text="Thanks for your support!")
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
+
         new_volume = min(self.player.volume + 10, 100)  # Volume should not exceed 100
         await self.player.set_volume(new_volume)
-        await interaction.response.send_message(f'Volume increased to {new_volume}%', ephemeral=True)
+        await interaction.followup.send(f'Volume increased to {new_volume}%', ephemeral=True)
 
     # Sets up button to pause music playback
     @ui.button(label='PAUSE', style=ButtonStyle.blurple, custom_id='pause_button')
     async def pause(self, interaction: Interaction, button: ui.Button):
+        await interaction.response.defer(ephemeral=True)
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in the same voice channel as me to use this command.",
-                                                    ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
+                                            ephemeral=True)
             return
         # Check the current paused state directly from the player and toggle it
         if self.player.paused:
@@ -1400,35 +1503,69 @@ class MusicButtons(ui.View):
             button.label = 'RESUME'  # Update the button label to 'Resume'
 
         # Edit the message to reflect the new button label
-        await interaction.response.edit_message(view=self)
+        await interaction.followup.edit_message(view=self, message_id=interaction.message.id)
 
     # Sets up the button for volume decrease
     @ui.button(label='VOL -', style=ButtonStyle.green, custom_id='vol_down_button')
     async def volume_down(self, interaction: Interaction, button: ui.Button):
+        await interaction.response.defer(ephemeral=True)
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in the same voice channel as me to use this command.",
-                                                    ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
+                                            ephemeral=True)
             return
+
+        if not await self.cog.has_voted(interaction.user, interaction.guild):
+            embed = discord.Embed(
+                title="Unlock This Feature!",
+                description=(
+                    "Hey there, music lover! 🎶 This feature is available to our awesome voters. "
+                    "Please [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) "
+                    "to unlock this perk. Server Boosters and active members of [our community](https://discord.gg/6WqKtrXjhn) get to skip this step! <a:tadaMM:1258473486003732642>"
+                ),
+                color=discord.Color.green()
+            )
+            embed.set_author(name="Music Monkey", icon_url=self.cog.bot.user.display_avatar.url)
+            embed.set_footer(text="Thanks for your support!")
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
+
         new_volume = max(self.player.volume - 10, 0)  # Volume should not go below 0
         await self.player.set_volume(new_volume)
-        await interaction.response.send_message(f'Volume decreased to {new_volume}%', ephemeral=True)
+        await interaction.followup.send(f'Volume decreased to {new_volume}%', ephemeral=True)
 
     # Sets up the button to skip the current song
     @ui.button(label='SKIP', style=ButtonStyle.green, custom_id='skip_button')
     async def skip(self, interaction: Interaction, button: ui.Button):
+        await interaction.response.defer(ephemeral=True)
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in the same voice channel as me to use this command.",
-                                                    ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
+                                            ephemeral=True)
             return
         await self.player.skip()
-        await interaction.response.send_message('Skipped the current song', ephemeral=True)
+        await interaction.followup.send('Skipped the current song', ephemeral=True)
 
     # Sets up the button to toggle the loop mode
     @ui.button(label='LOOP', style=ButtonStyle.green, custom_id='loop_button')
     async def toggle_loop(self, interaction: Interaction, button: ui.Button):
+        await interaction.response.defer(ephemeral=True)
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in the same voice channel as me to use this command.",
-                                                    ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
+                                            ephemeral=True)
+            return
+
+        if not await self.cog.has_voted(interaction.user, interaction.guild):
+            embed = discord.Embed(
+                title="Unlock This Feature!",
+                description=(
+                    "Hey there, music lover! 🎶 This feature is available to our awesome voters. "
+                    "Please [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) "
+                    "to unlock this perk. Server Boosters and active members of [our community](https://discord.gg/6WqKtrXjhn) get to skip this step! <a:tadaMM:1258473486003732642>"
+                ),
+                color=discord.Color.green()
+            )
+            embed.set_author(name="Music Monkey", icon_url=self.cog.bot.user.display_avatar.url)
+            embed.set_footer(text="Thanks for your support!")
+            await interaction.followup.send(embed=embed, ephemeral=True)
             return
 
         player = interaction.guild.voice_client
@@ -1447,27 +1584,29 @@ class MusicButtons(ui.View):
             button.label = "LOOP"
             response = "Looping disabled."
 
-        await interaction.response.edit_message(view=self)
+        await interaction.followup.edit_message(view=self, message_id=interaction.message.id)
         await interaction.followup.send(response, ephemeral=True)
 
     # Sets up the button for the rewind functionality
     @ui.button(label='REWIND', style=ButtonStyle.green, custom_id='rewind_button')
     async def rewind(self, interaction: Interaction, button: ui.Button):
+        await interaction.response.defer(ephemeral=True)
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in the same voice channel as me to use this command.",
-                                                    ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
+                                            ephemeral=True)
             return
         # Calculate the new position, ensuring it does not fall below zero
-        new_position = max(0, self.player.position - 5000)
+        new_position = max(0, self.player.position - 15000)
         await self.player.seek(new_position)
-        await interaction.response.send_message(f"Rewound 5 seconds.", ephemeral=True)
+        await interaction.followup.send(f"Rewound 15 seconds.", ephemeral=True)
 
     # Sets up the button to stop the music playback
     @ui.button(label='STOP', style=ButtonStyle.red, custom_id='stop_button')
     async def stop_music(self, interaction: Interaction, button: ui.Button):
+        await interaction.response.defer(ephemeral=True)
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in the same voice channel as me to use this command.",
-                                                    ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
+                                            ephemeral=True)
             return
 
         # Set the was_forcefully_stopped flag
@@ -1479,7 +1618,7 @@ class MusicButtons(ui.View):
         # Stops the current track, clears the queue, and disconnects the player from the channel
         await self.player.stop()
         await self.player.disconnect()
-        await interaction.response.send_message('Stopped the music and cleared the queue.', ephemeral=True)
+        await interaction.followup.send('Stopped the music and cleared the queue.', ephemeral=True)
 
         # Stop the view to prevent further interaction
         self.stop()
@@ -1499,22 +1638,40 @@ class MusicButtons(ui.View):
     # Sets up the button for the forward functionality
     @ui.button(label='FORWARD', style=ButtonStyle.green, custom_id='forward_button')
     async def forward(self, interaction: Interaction, button: ui.Button):
+        await interaction.response.defer(ephemeral=True)
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in the same voice channel as me to use this command.",
-                                                    ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
+                                            ephemeral=True)
             return
         # Calculate the new position, ensuring it does not exceed the track's duration
-        new_position = min(self.player.position + 5000, self.player.current.length)
+        new_position = min(self.player.position + 15000, self.player.current.length)
         await self.player.seek(new_position)
-        await interaction.response.send_message(f"Forwarded 5 seconds.", ephemeral=True)
+        await interaction.followup.send(f"Forwarded 15 seconds.", ephemeral=True)
 
     # Sets up the button to toggle autoplay
     @ui.button(label='AUTOPLAY', style=ButtonStyle.green, custom_id='autoplay_button')
     async def toggle_autoplay(self, interaction: Interaction, button: ui.Button):
+        await interaction.response.defer(ephemeral=True)
         if not await self.cog.user_in_voice(interaction):
-            await interaction.response.send_message("You must be in the same voice channel as me to use this command.",
-                                                    ephemeral=True)
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
+                                            ephemeral=True)
             return
+
+        if not await self.cog.has_voted(interaction.user, interaction.guild):
+            embed = discord.Embed(
+                title="Unlock This Feature!",
+                description=(
+                    "Hey there, music lover! 🎶 This feature is available to our awesome voters. "
+                    "Please [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) "
+                    "to unlock this perk. Server Boosters and active members of [our community](https://discord.gg/6WqKtrXjhn) get to skip this step! <a:tadaMM:1258473486003732642>"
+                ),
+                color=discord.Color.green()
+            )
+            embed.set_author(name="Music Monkey", icon_url=self.cog.bot.user.display_avatar.url)
+            embed.set_footer(text="Thanks for your support!")
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
+
         # If autoplay is disabled, enable it and change button label
         if self.player.autoplay == wavelink.AutoPlayMode.disabled:
             self.player.autoplay = wavelink.AutoPlayMode.enabled
@@ -1525,7 +1682,7 @@ class MusicButtons(ui.View):
             self.player.autoplay = wavelink.AutoPlayMode.disabled
             button.label = "AUTOPLAY"
             response = "Autoplay disabled."
-        await interaction.response.edit_message(view=self)
+        await interaction.followup.edit_message(view=self, message_id=interaction.message.id)
         await interaction.followup.send(response, ephemeral=True)
 
 
