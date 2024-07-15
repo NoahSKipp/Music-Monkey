@@ -550,7 +550,7 @@ class MusicCog(commands.Cog):
                         description=(
                             "Playing tracks from sources other than YouTube is a special feature just for our awesome voters.\n "
                             "Please take a moment to [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) to unlock this perk. \n"
-                            "As a bonus, Server Boosters and giveaway winners get to skip this step and enjoy all the tunes! <a:tadaMM:1258473486003732642> "
+                            "As a bonus, Server Boosters and active members of [our community](https://discord.gg/6WqKtrXjhn) get to skip this step and enjoy all the tunes! <a:tadaMM:1258473486003732642> "
                         ),
                         color=discord.Color.green()
                     )
@@ -766,7 +766,7 @@ class MusicCog(commands.Cog):
                 description=(
                     "This feature is available to our awesome voters.\n "
                     "Please take a moment to [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) to unlock this perk. \n"
-                    "As a bonus, Server Boosters and giveaway winners get to skip this step and enjoy all the tunes! <a:tadaMM:1258473486003732642> "
+                    "As a bonus, Server Boosters and active members of [our community](https://discord.gg/6WqKtrXjhn) get to skip this step and enjoy all the tunes! <a:tadaMM:1258473486003732642> "
                 ),
                 color=discord.Color.green()
             )
@@ -925,7 +925,7 @@ class MusicCog(commands.Cog):
                 description=(
                     "Hey there, music lover! 🎶 This feature is available to our awesome voters. "
                     "Please [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) "
-                    "to unlock this perk. Server Boosters and giveaway winners get to skip this step! 🎉"
+                    "to unlock this perk. Server Boosters and active members of [our community](https://discord.gg/6WqKtrXjhn) get to skip this step! <a:tadaMM:1258473486003732642>"
                 ),
                 color=discord.Color.green()
             )
@@ -974,7 +974,7 @@ class MusicCog(commands.Cog):
                 description=(
                     "Hey there, music lover! 🎶 This feature is available to our awesome voters. "
                     "Please [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) "
-                    "to unlock this perk. Server Boosters and giveaway winners get to skip this step! 🎉"
+                    "to unlock this perk. Server Boosters and active members of [our community](https://discord.gg/6WqKtrXjhn) get to skip this step! <a:tadaMM:1258473486003732642>"
                 ),
                 color=discord.Color.green()
             )
@@ -1234,7 +1234,7 @@ class MusicCog(commands.Cog):
                 description=(
                     "This feature is available to our awesome voters.\n "
                     "Please take a moment to [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) to unlock this perk. \n"
-                    "As a bonus, Server Boosters and giveaway winners get to skip this step and enjoy all the tunes! <a:tadaMM:1258473486003732642> "
+                    "As a bonus, Server Boosters and active members of [our community](https://discord.gg/6WqKtrXjhn) get to skip this step and enjoy all the tunes! <a:tadaMM:1258473486003732642> "
                 ),
                 color=discord.Color.green()
             )
@@ -1473,7 +1473,7 @@ class MusicButtons(ui.View):
                 description=(
                     "Hey there, music lover! 🎶 This feature is available to our awesome voters. "
                     "Please [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) "
-                    "to unlock this perk. Server Boosters and giveaway winners get to skip this step! 🎉"
+                    "to unlock this perk. Server Boosters and active members of [our community](https://discord.gg/6WqKtrXjhn) get to skip this step! <a:tadaMM:1258473486003732642>"
                 ),
                 color=discord.Color.green()
             )
@@ -1520,7 +1520,7 @@ class MusicButtons(ui.View):
                 description=(
                     "Hey there, music lover! 🎶 This feature is available to our awesome voters. "
                     "Please [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) "
-                    "to unlock this perk. Server Boosters and giveaway winners get to skip this step! 🎉"
+                    "to unlock this perk. Server Boosters and active members of [our community](https://discord.gg/6WqKtrXjhn) get to skip this step! <a:tadaMM:1258473486003732642>"
                 ),
                 color=discord.Color.green()
             )
@@ -1559,7 +1559,7 @@ class MusicButtons(ui.View):
                 description=(
                     "Hey there, music lover! 🎶 This feature is available to our awesome voters. "
                     "Please [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) "
-                    "to unlock this perk. Server Boosters and giveaway winners get to skip this step! 🎉"
+                    "to unlock this perk. Server Boosters and active members of [our community](https://discord.gg/6WqKtrXjhn) get to skip this step! <a:tadaMM:1258473486003732642>"
                 ),
                 color=discord.Color.green()
             )
@@ -1663,7 +1663,7 @@ class MusicButtons(ui.View):
                 description=(
                     "Hey there, music lover! 🎶 This feature is available to our awesome voters. "
                     "Please [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) "
-                    "to unlock this perk. Server Boosters and giveaway winners get to skip this step! 🎉"
+                    "to unlock this perk. Server Boosters and active members of [our community](https://discord.gg/6WqKtrXjhn) get to skip this step! <a:tadaMM:1258473486003732642>"
                 ),
                 color=discord.Color.green()
             )

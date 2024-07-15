@@ -83,9 +83,9 @@ class RecommendCog(commands.Cog):
                 description=(
                     "This feature is available to our awesome voters.\n "
                     "Please take a moment to [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) to unlock this perk. \n"
-                    "As a bonus, Server Boosters and giveaway winners get to skip this step and enjoy all the tunes! <a:tadaMM:1258473486003732642> "
+                    "As a bonus, Server Boosters and active members of [our community](https://discord.gg/6WqKtrXjhn) get to skip this step and enjoy all the tunes! <a:tadaMM:1258473486003732642> "
                 ),
-                color=discord.Color.dark_red()
+                color=discord.Color.green()
             )
             embed.set_author(name="Unlock This Feature!", icon_url=self.bot.user.display_avatar.url)
             embed.set_footer(text="Thanks for your support!")

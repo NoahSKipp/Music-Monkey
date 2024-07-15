@@ -21,7 +21,7 @@ class BroadcastCog(commands.Cog):
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         handler.setFormatter(formatter)
         self.logger.addHandler(handler)
-        self.logger.setLevel(logging.INFO)
+        self.logger.setLevel(logging.DEBUG)
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -34,7 +34,7 @@ class BroadcastCog(commands.Cog):
             description=content,
             color=discord.Color.blue()
         )
-        embed.set_footer(text="MusicMonkey • Enhancing your music experience")
+        embed.set_footer(text="Configure how you want to receive these updates with /updates")
         embed.set_author(name="Dev Team", icon_url=self.bot.user.avatar.url if self.bot.user.avatar else None)
 
         tasks = []
