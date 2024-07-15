@@ -30,7 +30,7 @@ class MusicMonkey(commands.AutoShardedBot):
         await wavelink.Pool.connect(nodes=nodes, client=self)
 
         # Load extensions
-        extensions = ['music', 'musicprofile', 'recommend', 'help', 'broadcast', 'playlist']
+        extensions = ['music', 'musicprofile', 'recommend', 'help', 'broadcast', 'playlist', 'monkeyimages', 'monkeyfact']
         for extension in extensions:
             await self.load_extension(extension)
 
