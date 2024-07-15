@@ -13,7 +13,7 @@ class MonkeyImages(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="monkey", description="Send a random picture of a primate")
+    @app_commands.command(name="monkey", description="Send a random picture of a monkey")
     async def monkey(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
@@ -24,7 +24,7 @@ class MonkeyImages(commands.Cog):
         url = f"https://placemonkeys.com/{width}/{height}?random={random_value}"
 
         embed = discord.Embed(
-            title="Here's a random monkey picture for you! 🐵",
+            title="Here's a random monkey picture for you! <a:monkeyflip:1237140606296522762>",
             color=discord.Color.green()
         )
         embed.set_image(url=url)

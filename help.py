@@ -54,6 +54,9 @@ class HelpCog(commands.Cog):
                                      emoji='👥'),
                 discord.SelectOption(label='Music Recommendations', description='Get music recommendations',
                                      emoji='🎶'),
+                discord.SelectOption(label='Fun',
+                                     description='Fun commands to use',
+                                     emoji='🎉'),
                 discord.SelectOption(label='Support',
                                      description='Access immediate help and support resources',
                                      emoji='🤝')
@@ -75,7 +78,8 @@ class HelpCog(commands.Cog):
             'Settings and Configuration': self.get_settings_commands(),
             'Community and Profiles': self.get_community_and_profiles_info(),
             'Music Recommendations': self.get_music_recommendations(),
-            'Support': self.get_support_info()
+            'Support': self.get_support_info(),
+            'Fun': self.get_fun_commands()
         }
 
         # Ensure to defer the interaction if not already responded to
@@ -146,6 +150,11 @@ class HelpCog(commands.Cog):
         return ("**Support:**\n"
                 "Need help? Visit our **[Support Server](https://discord.gg/kyamXgVU68)** for more detailed support "
                 "from the developer and the community.")
+
+    def get_fun_commands(self):
+        return ("**Fun Commands:**\n"
+                "`/monkey` - Get a random picture of a monkey.\n"
+                "`/fact` - Get a random fact about monkeys.")
 
     def create_support_button(self):
         return ui.Button(label="Support", url="https://discord.gg/6WqKtrXjhn", style=ButtonStyle.link)
