@@ -1,7 +1,7 @@
 # ========================================= #
 # Author: Noah S. Kipp                      #
 # Collaborator: Samuel Jaden Garcia Munoz   #
-# Created on: 13.07.2024                    #
+# Created on: 15.07.2024                    #
 # ========================================= #
 
 import discord
