@@ -11,6 +11,7 @@ import database
 import wavelink
 import aiohttp
 import config
+import logging
 from music import MusicCog
 
 
@@ -102,16 +103,26 @@ class PlaylistPlaySelectView(discord.ui.View):
                 await interaction.response.send_message(f"Oops! The playlist '{selected_playlist['name']}' is empty. 📂",
                                                         ephemeral=True)
                 return
-            music_cog = interaction.client.get_cog("MusicCog")
-            if music_cog:
-                for song in contents:
-                    await music_cog.play_song(self.interaction, song['uri'])
+            player = interaction.guild.voice_client
+            if not player:
+                channel = interaction.user.voice.channel if interaction.user and interaction.user.voice else None
+                if not channel:
+                    await interaction.response.send_message("Please join a voice channel to play music. 🎶",
+                                                            ephemeral=True)
+                    return
+                player = await channel.connect(cls=wavelink.Player)
+                player.guild_id = interaction.guild_id
+                player.interaction_channel_id = interaction.channel_id
+
+            playlist_cog = interaction.client.get_cog("Playlist")
+            if playlist_cog:
+                await playlist_cog.play_songs(interaction, contents, player)
                 await self.interaction.followup.send(
                     f"Playing all songs from playlist '{selected_playlist['name']}'! 🎶",
                     ephemeral=False)
             else:
                 await self.interaction.followup.send(
-                    "Whoops! I can't seem to find my music controls. Please try again later. 🎧",
+                    "Whoops! I can't seem to find my playlist controls. Please try again later. 🎧",
                     ephemeral=True)
         await interaction.response.defer()
         self.stop()
@@ -121,6 +132,43 @@ class PlaylistPlaySelectView(discord.ui.View):
 class Playlist(commands.GroupCog, group_name="playlist"):
     def __init__(self, bot):
         self.bot = bot
+
+# Modified play_song function to handle playlist playback
+    async def play_songs(self, interaction, songs, player):
+        try:
+            tracks = []
+            for song in songs:
+                search_result = await wavelink.Playable.search(song['uri'])
+                if search_result:
+                    tracks.append(search_result[0])
+
+            for track in tracks:
+                track.extras = {"requester_id": interaction.user.id}
+                player.queue.put(track)
+
+            embed = discord.Embed(
+                title="**Added to Queue**",
+                description=f"{len(tracks)} tracks from the playlist",
+                color=discord.Color.dark_red()
+            )
+            embed.set_footer(text=f"Queue length: {len(player.queue)}")
+            await interaction.followup.send(embed=embed, ephemeral=False)
+
+            if not player.playing and not player.paused:
+                await player.play(player.queue.get())
+
+            for track in tracks:
+                await database.enter_song(track.identifier, track.title, track.author, track.length, track.uri)
+                await database.increment_plays(interaction.user.id, track.identifier, interaction.guild_id)
+
+        except discord.errors.NotFound:
+            logging.error("Interaction not found or expired.")
+        except Exception as e:
+            logging.error(f"Error processing the play command: {e}")
+            try:
+                await interaction.followup.send('An error occurred while trying to play the track.', ephemeral=True)
+            except discord.errors.NotFound:
+                logging.error("Failed to send follow-up message: Interaction not found or expired.")
 
     # Checks if the user has voted to use certain features
     async def check_voting_status(self, interaction: discord.Interaction):
@@ -472,9 +520,8 @@ class Playlist(commands.GroupCog, group_name="playlist"):
         embeds, view = await create_invite_view_embeds(invites, self.bot)
         await interaction.followup.send(embed=embeds[0], view=view, ephemeral=True)
 
-    # Command to play all songs from a playlist
     @app_commands.command(name="play", description="Play all songs from a playlist")
-    @app_commands.describe(name="Name of the playlist")
+    @app_commands.describe(name="name", description="Name of the playlist")
     async def play(self, interaction: discord.Interaction, name: str):
         await interaction.response.defer(ephemeral=True)
         if not await self.check_voting_status(interaction):
@@ -519,15 +566,18 @@ class Playlist(commands.GroupCog, group_name="playlist"):
                 await interaction.followup.send(f"Oops! The playlist '{selected_playlist['name']}' is empty. 🎶",
                                                 ephemeral=True)
                 return
-            music_cog = self.bot.get_cog("MusicCog")
-            if music_cog:
-                for song in contents:
-                    await music_cog.play_song(interaction, song['uri'])
-                await interaction.followup.send(f"Playing all songs from playlist '{selected_playlist['name']}'! <a:tadaMM:1258473486003732642>",
-                                                ephemeral=False)
-            else:
-                await interaction.followup.send(
-                    "Whoops! I can't seem to find my music controls. Please try again later. 🎧", ephemeral=True)
+
+            await self.play_songs(interaction, contents, player)
+
+            embed = discord.Embed(
+                title="Playing Playlist 🎶",
+                description=f"Playing all songs from playlist '{selected_playlist['name']}'! <a:tadaMM:1258473486003732642>",
+                color=discord.Color.dark_red()
+            )
+            embed.set_thumbnail(url=self.bot.user.display_avatar.url)
+            embed.set_footer(text="Enjoy your music!", icon_url=interaction.user.display_avatar.url)
+
+            await interaction.followup.send(embed=embed, ephemeral=False)
         else:
             view = PlaylistPlaySelectView(viewable_playlists, interaction)
             # No need to send response here as PlaylistPlaySelectView handles it
