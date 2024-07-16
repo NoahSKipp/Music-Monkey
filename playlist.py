@@ -94,19 +94,21 @@ class PlaylistPlaySelectView(discord.ui.View):
 
     # Callback function when a playlist is selected to play
     async def select_callback(self, interaction):
+        await interaction.response.defer()  # Defer the interaction to avoid expiration
+
         selected_index = int(interaction.data['values'][0])
         selected_playlist = self.playlists[selected_index]
         if selected_playlist:
             contents = await database.get_playlist_contents(selected_playlist['playlist_id'])
             if not contents:
-                await interaction.response.send_message(f"Oops! The playlist '{selected_playlist['name']}' is empty. 📂",
+                await interaction.followup.send_message(f"Oops! The playlist '{selected_playlist['name']}' is empty. 📂",
                                                         ephemeral=True)
                 return
             player = interaction.guild.voice_client
             if not player:
                 channel = interaction.user.voice.channel if interaction.user and interaction.user.voice else None
                 if not channel:
-                    await interaction.response.send_message("Please join a voice channel to play music. 🎶",
+                    await interaction.followup.send_message("Please join a voice channel to play music. 🎶",
                                                             ephemeral=True)
                     return
                 player = await channel.connect(cls=wavelink.Player)
@@ -116,14 +118,13 @@ class PlaylistPlaySelectView(discord.ui.View):
             playlist_cog = interaction.client.get_cog("Playlist")
             if playlist_cog:
                 await playlist_cog.play_songs(interaction, contents, player)
-                await self.interaction.followup.send(
+                await interaction.followup.send(
                     f"Playing all songs from playlist '{selected_playlist['name']}'! 🎶",
                     ephemeral=False)
             else:
-                await self.interaction.followup.send(
+                await interaction.followup.send(
                     "Whoops! I can't seem to find my playlist controls. Please try again later. 🎧",
                     ephemeral=True)
-        await interaction.response.defer()
         self.stop()
 
 
@@ -132,7 +133,7 @@ class Playlist(commands.GroupCog, group_name="playlist"):
     def __init__(self, bot):
         self.bot = bot
 
-# Modified play_song function to handle playlist playback
+    # Modified play_song function to handle playlist playback
     async def play_songs(self, interaction, songs, player):
         try:
             tracks = []
@@ -251,9 +252,23 @@ class Playlist(commands.GroupCog, group_name="playlist"):
             embed.add_field(name=song['song_name'], value=f"Artist: {song['artist']}", inline=False)
         await interaction.followup.send(embed=embed, ephemeral=True)
 
+    # Handles command execution errors and delegates to the error_handler
+    async def error_handler(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        if isinstance(error, app_commands.CommandOnCooldown):
+            await interaction.response.send_message(
+                f"Command is on cooldown. Try again in {error.retry_after:.2f} seconds.",
+                ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(
+                "An error occurred while processing the command.",
+                ephemeral=True
+            )
+
     # Command to create a new playlist
     @app_commands.command(name="create", description="Create a new playlist")
     @app_commands.describe(name="Name of the playlist", privacy="Privacy of the playlist (Public/Private)")
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     async def create(self, interaction: discord.Interaction, name: str, privacy: str = "public"):
         await interaction.response.defer(ephemeral=True)
         if not await self.check_voting_status(interaction):
@@ -278,6 +293,10 @@ class Playlist(commands.GroupCog, group_name="playlist"):
             f"Awesome! Playlist '{name}' created with privacy setting {'Public' if privacy_value == 1 else 'Private'}. 🎵",
             ephemeral=True)
 
+    @create.error
+    async def create_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self.error_handler(interaction, error)
+
     # Checks if the user has permissions to edit a playlist
     async def check_permissions(self, user_id: int, playlist_name: str):
         return await database.check_playlist_permission(user_id, playlist_name)
@@ -285,6 +304,7 @@ class Playlist(commands.GroupCog, group_name="playlist"):
     # Command to add a song to a playlist
     @app_commands.command(name="add", description="Add a song to a playlist")
     @app_commands.describe(name="Name of the playlist", query="Song to add")
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     async def add(self, interaction: discord.Interaction, name: str, query: str):
         await interaction.response.defer(ephemeral=True)
         if not await self.check_voting_status(interaction):
@@ -315,9 +335,14 @@ class Playlist(commands.GroupCog, group_name="playlist"):
             await interaction.followup.send(f"Added song '{song_name}' by '{artist}' to playlist '{name}'! <a:tadaMM:1258473486003732642>",
                                             ephemeral=True)
 
+    @add.error
+    async def add_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self.error_handler(interaction, error)
+
     # Command to remove a song from a playlist
     @app_commands.command(name="remove", description="Remove a song from a playlist")
     @app_commands.describe(name="Name of the playlist", query="Song to remove")
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     async def remove(self, interaction: discord.Interaction, name: str, query: str):
         await interaction.response.defer(ephemeral=True)
         if not await self.check_voting_status(interaction):
@@ -345,9 +370,14 @@ class Playlist(commands.GroupCog, group_name="playlist"):
             await interaction.followup.send(
                 f"Removed song '{track.title}' by '{track.author}' from playlist '{name}'! <a:tadaMM:1258473486003732642>", ephemeral=True)
 
+    @remove.error
+    async def remove_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self.error_handler(interaction, error)
+
     # Command to remove duplicate songs from a playlist
     @app_commands.command(name="dedupe", description="Remove duplicate songs from a playlist")
     @app_commands.describe(name="Name of the playlist")
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     async def dedupe(self, interaction: discord.Interaction, name: str):
         await interaction.response.defer(ephemeral=True)
         if not await self.check_voting_status(interaction):
@@ -366,9 +396,14 @@ class Playlist(commands.GroupCog, group_name="playlist"):
         else:
             await interaction.followup.send(f"Yay! Removed duplicate songs from playlist '{name}'. <a:tadaMM:1258473486003732642>", ephemeral=True)
 
+    @dedupe.error
+    async def dedupe_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self.error_handler(interaction, error)
+
     # Command to view a playlist
     @app_commands.command(name="view", description="View a playlist")
     @app_commands.describe(name="Name of the playlist")
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     async def view(self, interaction: discord.Interaction, name: str):
         await interaction.response.defer(ephemeral=True)
         if not await self.check_voting_status(interaction):
@@ -410,8 +445,13 @@ class Playlist(commands.GroupCog, group_name="playlist"):
             embeds, view = await create_playlist_selection_embeds(viewable_playlists, self.bot)
             await interaction.followup.send(embed=embeds[0], view=view, ephemeral=True)
 
+    @view.error
+    async def view_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self.error_handler(interaction, error)
+
     # Command to view all playlists in the current guild
     @app_commands.command(name="guildview", description="View all playlists in the current guild")
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     async def guildview(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         if not await self.check_voting_status(interaction):
@@ -441,10 +481,15 @@ class Playlist(commands.GroupCog, group_name="playlist"):
         paginator = PlaylistPaginator(embeds, total_pages=total_pages)
         await interaction.followup.send(embed=embeds[0], view=paginator, ephemeral=True)
 
+    @guildview.error
+    async def guildview_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self.error_handler(interaction, error)
+
     # Command to edit a playlist's settings
     @app_commands.command(name="edit", description="Edit a playlist's settings")
     @app_commands.describe(name="name")
     @app_commands.autocomplete(name=playlist_autocomplete)
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     async def edit(self, interaction: discord.Interaction, name: str):
         await interaction.response.defer(ephemeral=True)
         if not await self.check_voting_status(interaction):
@@ -464,9 +509,14 @@ class Playlist(commands.GroupCog, group_name="playlist"):
         embed, view = await create_edit_interface(interaction, playlist)
         await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
+    @edit.error
+    async def edit_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self.error_handler(interaction, error)
+
     # Command to invite a user to a playlist
     @app_commands.command(name="invite", description="Invite a user to a playlist")
     @app_commands.describe(name="Name of the playlist", user="User to invite")
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     async def invite(self, interaction: discord.Interaction, name: str, user: discord.User):
         await interaction.response.defer(ephemeral=True)
         if not await self.check_voting_status(interaction):
@@ -503,8 +553,13 @@ class Playlist(commands.GroupCog, group_name="playlist"):
 
             await interaction.followup.send(f"Invited {user.name} to playlist '{playlist_name}'. 🎶", ephemeral=True)
 
+    @invite.error
+    async def invite_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self.error_handler(interaction, error)
+
     # Command to view the user's playlist invites
     @app_commands.command(name="invites", description="View your playlist invites")
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     async def invites(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         if not await self.check_voting_status(interaction):
@@ -519,8 +574,13 @@ class Playlist(commands.GroupCog, group_name="playlist"):
         embeds, view = await create_invite_view_embeds(invites, self.bot)
         await interaction.followup.send(embed=embeds[0], view=view, ephemeral=True)
 
+    @invites.error
+    async def invites_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self.error_handler(interaction, error)
+
     @app_commands.command(name="play", description="Play all songs from a playlist")
-    @app_commands.describe(name="name", description="Name of the playlist")
+    @app_commands.describe(name="Name of the playlist")
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     async def play(self, interaction: discord.Interaction, name: str):
         await interaction.response.defer(ephemeral=True)
         if not await self.check_voting_status(interaction):
@@ -581,10 +641,15 @@ class Playlist(commands.GroupCog, group_name="playlist"):
             view = PlaylistPlaySelectView(viewable_playlists, interaction)
             # No need to send response here as PlaylistPlaySelectView handles it
 
+    @play.error
+    async def play_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self.error_handler(interaction, error)
+
     # Command to delete a playlist
     @app_commands.command(name="delete", description="Delete a playlist")
     @app_commands.describe(name="Name of the playlist")
     @app_commands.autocomplete(name=playlist_autocomplete)
+    @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     async def delete(self, interaction: discord.Interaction, name: str):
         await interaction.response.defer(ephemeral=True)
         if not await self.check_voting_status(interaction):
@@ -605,6 +670,10 @@ class Playlist(commands.GroupCog, group_name="playlist"):
         await interaction.followup.send(f"Are you sure you want to delete the playlist '{name}'? 🎶", view=view,
                                         ephemeral=True)
 
+    @delete.error
+    async def delete_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        await self.error_handler(interaction, error)
+
 
 # View for confirming the deletion of a playlist
 class ConfirmDeleteView(discord.ui.View):
@@ -617,13 +686,19 @@ class ConfirmDeleteView(discord.ui.View):
     # Callback function for the confirm button to delete the playlist
     @discord.ui.button(label="Yes", style=discord.ButtonStyle.danger)
     async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()  # Defer the interaction to avoid expiration
+
         result = await database.delete_playlist(self.user_id, self.playlist_name, self.playlist_id)
-        await interaction.response.edit_message(content=result, view=None)
+        message = await interaction.original_response()
+        await message.edit(content=result, view=None)
 
     # Callback function for the cancel button to cancel the deletion
     @discord.ui.button(label="No", style=discord.ButtonStyle.secondary)
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(content="Playlist deletion cancelled. 🎶", view=None)
+        await interaction.response.defer()  # Defer the interaction to avoid expiration
+
+        message = await interaction.original_response()
+        await message.edit(content="Playlist deletion cancelled. 🎶", view=None)
 
 
 # Paginator view for navigating through playlist contents
@@ -682,23 +757,27 @@ class PlaylistPaginator(discord.ui.View):
 
     # Callback function for the first button in the paginator
     async def first_page(self, interaction: discord.Interaction):
+        await interaction.response.defer()  # Defer the interaction to avoid expiration
         self.current_page = 0
         await self.update(interaction)
 
     # Callback function for the previous button in the paginator
     async def previous(self, interaction: discord.Interaction):
+        await interaction.response.defer()  # Defer the interaction to avoid expiration
         if self.current_page > 0:
             self.current_page -= 1
             await self.update(interaction)
 
     # Callback function for the next button in the paginator
     async def next(self, interaction: discord.Interaction):
+        await interaction.response.defer()  # Defer the interaction to avoid expiration
         if self.current_page < self.total_pages - 1:
             self.current_page += 1
             await self.update(interaction)
 
     # Callback function for the last button in the paginator
     async def last_page(self, interaction: discord.Interaction):
+        await interaction.response.defer()  # Defer the interaction to avoid expiration
         self.current_page = self.total_pages - 1
         await self.update(interaction)
 
@@ -843,6 +922,7 @@ class PlaylistSelection(discord.ui.View):
 
     # Callback function for selecting a playlist
     async def select_playlist(self, interaction: discord.Interaction):
+        await interaction.response.defer()  # Defer the interaction to avoid expiration
         selected_playlist_id = int(self.select.values[0])
         self.selected_playlist = next(
             (playlist for playlist in self.playlists if playlist['playlist_id'] == selected_playlist_id), None)
@@ -850,6 +930,7 @@ class PlaylistSelection(discord.ui.View):
 
     # Callback function for viewing the selected playlist
     async def view_playlist(self, interaction: discord.Interaction):
+        await interaction.response.defer()  # Defer the interaction to avoid expiration
         user_id = interaction.user.id
         if self.selected_playlist:
             if self.selected_playlist['privacy'] == 1 or user_id == self.selected_playlist[
@@ -859,12 +940,12 @@ class PlaylistSelection(discord.ui.View):
                                       color=discord.Color.dark_red())
                 for song in contents:
                     embed.add_field(name=song['song_name'], value=f"Artist: {song['artist']}", inline=False)
-                await interaction.response.send_message(embed=embed, ephemeral=True)
+                await interaction.followup.send_message(embed=embed, ephemeral=True)
             else:
-                await interaction.response.send_message("Oops! You do not have permission to view this playlist. 🎶",
+                await interaction.followup.send_message("Oops! You do not have permission to view this playlist. 🎶",
                                                         ephemeral=True)
         else:
-            await interaction.response.send_message("Please select a playlist first. 🎶", ephemeral=True)
+            await interaction.followup.send_message("Please select a playlist first. 🎶", ephemeral=True)
 
     # Creates an embed for the selected playlist
     async def create_embed(self):
