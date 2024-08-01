@@ -11,11 +11,35 @@ import database
 import wavelink
 import aiohttp
 import config
+import logging
+import database as db
 
 
 class MusicProfile(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+
+    async def interaction_check(self, interaction: discord.Interaction):
+        logging.debug(f'Interaction check for {interaction.user} in guild {interaction.guild_id}')
+        await db.enter_guild(interaction.guild_id)
+        await db.enter_user(interaction.user.id, interaction.guild_id)
+        dj_only = await db.get_dj_only_enabled(interaction.guild_id)
+        dj_role_id = await db.get_dj_role(interaction.guild_id)
+
+        if not dj_only:
+            return True
+
+        has_permissions = interaction.user.guild_permissions.manage_roles
+        is_dj = any(role.id == dj_role_id for role in interaction.user.roles)
+
+        if has_permissions or is_dj:
+            return True
+
+        await interaction.response.send_message(
+            "DJ-only mode is enabled. You need DJ privileges to use this.",
+            ephemeral=True
+        )
+        return False
 
     async def has_voted(self, user: discord.User, guild: discord.Guild) -> bool:
         # Log guild and role checks
@@ -23,6 +47,8 @@ class MusicProfile(commands.Cog):
 
         # Check if the command is used in the exempt guild
         if guild.id == config.EXEMPT_GUILD_ID:
+            return True
+        if guild.id == '1253445742388056064':
             return True
 
         # Check if the user has the exempt role in the exempt guild
@@ -104,7 +130,7 @@ class MusicProfile(commands.Cog):
         user_id = user.id
         profile = await database.get_user_stats(user_id)
         if profile:
-            embed = discord.Embed(title=f"🎶 {user.display_name}'s Music Profile 🎶", color=discord.Color.random())
+            embed = discord.Embed(title=f"🎶 {user.display_name}'s Music Profile 🎶", color=discord.Color.gold())
             embed.set_thumbnail(url=user.display_avatar.url)
             embed.add_field(name="🎤 Top Artist", value=profile['top_artist'], inline=False)
             embed.add_field(name="🎵 Top Song", value=profile['top_song'], inline=False)
@@ -145,7 +171,7 @@ class MusicProfile(commands.Cog):
                 return
 
             embed = discord.Embed(title="🎵 Music Leaderboard 🎵", description="Top music players in the server!",
-                                  color=discord.Color.blue())
+                                  color=discord.Color.gold())
 
             for idx, (user_id, count) in enumerate(leaderboard_data, start=1):
                 user = await self.bot.fetch_user(user_id)

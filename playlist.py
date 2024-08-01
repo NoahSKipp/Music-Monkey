@@ -7,7 +7,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-import database
+import database as db
 import wavelink
 import aiohttp
 import config
@@ -17,7 +17,7 @@ import logging
 # This function provides autocomplete suggestions for playlist names based on the current input
 async def playlist_autocomplete(interaction: discord.Interaction, current: str):
     user_id = interaction.user.id
-    playlists = await database.get_user_playlists(user_id)
+    playlists = await db.get_user_playlists(user_id)
     return [
         app_commands.Choice(name=playlist['name'], value=playlist['name'])
         for playlist in playlists if current.lower() in playlist['name'].lower()
@@ -73,7 +73,7 @@ class PlaylistPlaySelectView(discord.ui.View):
                     options.append(discord.SelectOption(label=label, value=str(index)))
                     seen.add(label)
             else:
-                collaborators = await database.get_playlist_collaborators(playlist['playlist_id'])
+                collaborators = await db.get_playlist_collaborators(playlist['playlist_id'])
                 if self.interaction.user.id in collaborators:
                     creator_name = self.interaction.client.get_user(playlist['user_id']).name
                     label = f"{playlist['name']} by {creator_name}"
@@ -99,7 +99,7 @@ class PlaylistPlaySelectView(discord.ui.View):
         selected_index = int(interaction.data['values'][0])
         selected_playlist = self.playlists[selected_index]
         if selected_playlist:
-            contents = await database.get_playlist_contents(selected_playlist['playlist_id'])
+            contents = await db.get_playlist_contents(selected_playlist['playlist_id'])
             if not contents:
                 await interaction.followup.send_message(f"Oops! The playlist '{selected_playlist['name']}' is empty. 📂",
                                                         ephemeral=True)
@@ -133,6 +133,28 @@ class Playlist(commands.GroupCog, group_name="playlist"):
     def __init__(self, bot):
         self.bot = bot
 
+    async def interaction_check(self, interaction: discord.Interaction):
+        logging.debug(f'Interaction check for {interaction.user} in guild {interaction.guild_id}')
+        await db.enter_guild(interaction.guild_id)
+        await db.enter_user(interaction.user.id, interaction.guild_id)
+        dj_only = await db.get_dj_only_enabled(interaction.guild_id)
+        dj_role_id = await db.get_dj_role(interaction.guild_id)
+
+        if not dj_only:
+            return True
+
+        has_permissions = interaction.user.guild_permissions.manage_roles
+        is_dj = any(role.id == dj_role_id for role in interaction.user.roles)
+
+        if has_permissions or is_dj:
+            return True
+
+        await interaction.response.send_message(
+            "DJ-only mode is enabled. You need DJ privileges to use this.",
+            ephemeral=True
+        )
+        return False
+
     # Modified play_song function to handle playlist playback
     async def play_songs(self, interaction, songs, player):
         try:
@@ -158,8 +180,8 @@ class Playlist(commands.GroupCog, group_name="playlist"):
                 await player.play(player.queue.get())
 
             for track in tracks:
-                await database.enter_song(track.identifier, track.title, track.author, track.length, track.uri)
-                await database.increment_plays(interaction.user.id, track.identifier, interaction.guild_id)
+                await db.enter_song(track.identifier, track.title, track.author, track.length, track.uri)
+                await db.increment_plays(interaction.user.id, track.identifier, interaction.guild_id)
 
         except discord.errors.NotFound:
             logging.error("Interaction not found or expired.")
@@ -200,6 +222,8 @@ class Playlist(commands.GroupCog, group_name="playlist"):
         print(f"Checking vote status for user {user.id} in guild {guild.id}")
 
         if guild.id == config.EXEMPT_GUILD_ID:
+            return True
+        if guild.id == '1253445742388056064':
             return True
 
         exempt_guild = self.bot.get_guild(config.EXEMPT_GUILD_ID)
@@ -246,7 +270,7 @@ class Playlist(commands.GroupCog, group_name="playlist"):
 
     # Method to show the contents of a playlist
     async def show_playlist_contents(self, interaction: discord.Interaction, playlist):
-        contents = await database.get_playlist_contents(playlist['playlist_id'])
+        contents = await db.get_playlist_contents(playlist['playlist_id'])
         embed = discord.Embed(title=f"Playlist: {playlist['name']}", color=discord.Color.dark_red())
         for song in contents:
             embed.add_field(name=song['song_name'], value=f"Artist: {song['artist']}", inline=False)
@@ -280,15 +304,15 @@ class Playlist(commands.GroupCog, group_name="playlist"):
         privacy_value = 1 if privacy.lower() == "public" else 0
 
         # Check if the user already has a playlist with the given name
-        existing_playlists = await database.get_user_playlists(user_id)
+        existing_playlists = await db.get_user_playlists(user_id)
         if any(playlist['name'].lower() == name.lower() for playlist in existing_playlists):
             await interaction.followup.send(
                 f"You already have a playlist named '{name}'. Please choose a different name. 🎶", ephemeral=True)
             return
 
-        await database.enter_guild(guild_id)
-        await database.enter_user(user_id, guild_id)
-        await database.create_playlist(user_id, guild_id, name, privacy_value)
+        await db.enter_guild(guild_id)
+        await db.enter_user(user_id, guild_id)
+        await db.create_playlist(user_id, guild_id, name, privacy_value)
         await interaction.followup.send(
             f"Awesome! Playlist '{name}' created with privacy setting {'Public' if privacy_value == 1 else 'Private'}. 🎵",
             ephemeral=True)
@@ -299,7 +323,7 @@ class Playlist(commands.GroupCog, group_name="playlist"):
 
     # Checks if the user has permissions to edit a playlist
     async def check_permissions(self, user_id: int, playlist_name: str):
-        return await database.check_playlist_permission(user_id, playlist_name)
+        return await db.check_playlist_permission(user_id, playlist_name)
 
     # Command to add a song to a playlist
     @app_commands.command(name="add", description="Add a song to a playlist")
@@ -328,7 +352,7 @@ class Playlist(commands.GroupCog, group_name="playlist"):
         artist = track.author
         uri = track.uri
 
-        result = await database.add_song_to_playlist(user_id, name, song_id, song_name, artist, uri)
+        result = await db.add_song_to_playlist(user_id, name, song_id, song_name, artist, uri)
         if result == 'Playlist not found':
             await interaction.followup.send("Sorry, I couldn't find that playlist. 🎶", ephemeral=True)
         else:
@@ -363,7 +387,7 @@ class Playlist(commands.GroupCog, group_name="playlist"):
         track = search_result[0]
         song_id = track.identifier
 
-        result = await database.remove_song_from_playlist(user_id, name, song_id)
+        result = await db.remove_song_from_playlist(user_id, name, song_id)
         if result == 'Playlist not found':
             await interaction.followup.send("Sorry, I couldn't find that playlist. 🎶", ephemeral=True)
         else:
@@ -390,7 +414,7 @@ class Playlist(commands.GroupCog, group_name="playlist"):
                                             ephemeral=True)
             return
 
-        result = await database.dedupe_playlist(user_id, name)
+        result = await db.dedupe_playlist(user_id, name)
         if result == 'Playlist not found':
             await interaction.followup.send("Sorry, I couldn't find that playlist. 🎶", ephemeral=True)
         else:
@@ -410,7 +434,7 @@ class Playlist(commands.GroupCog, group_name="playlist"):
             return
 
         user_id = interaction.user.id
-        playlists = await database.view_playlist(name)
+        playlists = await db.view_playlist(name)
         if not playlists:
             await interaction.followup.send("Sorry, I couldn't find any playlists with that name. 🎶", ephemeral=True)
             return
@@ -423,7 +447,7 @@ class Playlist(commands.GroupCog, group_name="playlist"):
 
         if len(viewable_playlists) == 1:
             selected_playlist = viewable_playlists[0]
-            contents = await database.get_playlist_contents(selected_playlist['playlist_id'])
+            contents = await db.get_playlist_contents(selected_playlist['playlist_id'])
             if not contents:
                 await interaction.followup.send(f"Oops! The playlist '{selected_playlist['name']}' is empty. 🎶",
                                                 ephemeral=True)
@@ -458,7 +482,7 @@ class Playlist(commands.GroupCog, group_name="playlist"):
             return
 
         guild_id = interaction.guild_id
-        playlists = await database.get_guild_playlists(guild_id)
+        playlists = await db.get_guild_playlists(guild_id)
         if not playlists:
             await interaction.followup.send("No playlists found for this guild. 🎶", ephemeral=True)
             return
@@ -469,7 +493,7 @@ class Playlist(commands.GroupCog, group_name="playlist"):
             embed = discord.Embed(title=playlist['name'], description=f"Creator: {playlist['user_id']}",
                                   color=discord.Color.dark_red())
             embed.add_field(name="Privacy", value="Public" if playlist['privacy'] == 1 else "Private")
-            contents = await database.get_playlist_contents(playlist['playlist_id'])
+            contents = await db.get_playlist_contents(playlist['playlist_id'])
             total_pages = (len(contents) + items_per_page - 1) // items_per_page
             for i in range(0, len(contents), items_per_page):
                 page_embed = embed.copy()
@@ -496,7 +520,7 @@ class Playlist(commands.GroupCog, group_name="playlist"):
             return
 
         user_id = interaction.user.id
-        playlist = await database.get_playlist_by_name(name)
+        playlist = await db.get_playlist_by_name(name)
 
         if not playlist:
             await interaction.followup.send("Sorry, I couldn't find that playlist. 🎶", ephemeral=True)
@@ -530,7 +554,7 @@ class Playlist(commands.GroupCog, group_name="playlist"):
                 "Oops! You don't have permission to invite collaborators to this playlist. 🎶", ephemeral=True)
             return
 
-        result = await database.invite_user_to_playlist(user_id, name, invitee_id)
+        result = await db.invite_user_to_playlist(user_id, name, invitee_id)
 
         if isinstance(result, str):
             await interaction.followup.send(result, ephemeral=True)
@@ -566,7 +590,7 @@ class Playlist(commands.GroupCog, group_name="playlist"):
             return
 
         user_id = interaction.user.id
-        invites = await database.get_user_invites(user_id)
+        invites = await db.get_user_invites(user_id)
         if not invites:
             await interaction.followup.send("No invites found. 🎶", ephemeral=True)
             return
@@ -589,7 +613,7 @@ class Playlist(commands.GroupCog, group_name="playlist"):
         user_id = interaction.user.id
         guild_id = interaction.guild_id
 
-        playlists = await database.view_playlist(name)
+        playlists = await db.view_playlist(name)
         if not playlists:
             await interaction.followup.send("Sorry, I couldn't find any playlists with that name. 🎶", ephemeral=True)
             return
@@ -599,7 +623,7 @@ class Playlist(commands.GroupCog, group_name="playlist"):
             if playlist['privacy'] == 1 or user_id == playlist['user_id']:
                 viewable_playlists.append(playlist)
             else:
-                collaborators = await database.get_playlist_collaborators(playlist['playlist_id'])
+                collaborators = await db.get_playlist_collaborators(playlist['playlist_id'])
                 if user_id in collaborators:
                     viewable_playlists.append(playlist)
 
@@ -620,7 +644,7 @@ class Playlist(commands.GroupCog, group_name="playlist"):
 
         if len(viewable_playlists) == 1:
             selected_playlist = viewable_playlists[0]
-            contents = await database.get_playlist_contents(selected_playlist['playlist_id'])
+            contents = await db.get_playlist_contents(selected_playlist['playlist_id'])
             if not contents:
                 await interaction.followup.send(f"Oops! The playlist '{selected_playlist['name']}' is empty. 🎶",
                                                 ephemeral=True)
@@ -656,7 +680,7 @@ class Playlist(commands.GroupCog, group_name="playlist"):
             return
 
         user_id = interaction.user.id
-        playlist = await database.get_user_playlist_by_name(user_id, name)
+        playlist = await db.get_user_playlist_by_name(user_id, name)
         if not playlist:
             await interaction.followup.send("Sorry, I couldn't find that playlist. 🎶", ephemeral=True)
             return
@@ -688,7 +712,7 @@ class ConfirmDeleteView(discord.ui.View):
     async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()  # Defer the interaction to avoid expiration
 
-        result = await database.delete_playlist(self.user_id, self.playlist_name, self.playlist_id)
+        result = await db.delete_playlist(self.user_id, self.playlist_name, self.playlist_id)
         message = await interaction.original_response()
         await message.edit(content=result, view=None)
 
@@ -849,7 +873,7 @@ class Paginator(discord.ui.View):
     # Callback function for the accept button in the paginator
     async def accept(self, interaction: discord.Interaction):
         invite = self.invites[self.current_page]
-        await database.accept_playlist_invite(invite['invite_id'])
+        await db.accept_playlist_invite(invite['invite_id'])
         message = f"Invite to playlist '{invite['name']}' accepted! 🎉"
         await self.remove_current_invite()
         await self.update(interaction, message)
@@ -857,7 +881,7 @@ class Paginator(discord.ui.View):
     # Callback function for the decline button in the paginator
     async def decline(self, interaction: discord.Interaction):
         invite = self.invites[self.current_page]
-        await database.decline_playlist_invite(invite['invite_id'])
+        await db.decline_playlist_invite(invite['invite_id'])
         message = f"Invite to playlist '{invite['name']}' declined. 🎶"
         await self.remove_current_invite()
         await self.update(interaction, message)
@@ -934,8 +958,8 @@ class PlaylistSelection(discord.ui.View):
         user_id = interaction.user.id
         if self.selected_playlist:
             if self.selected_playlist['privacy'] == 1 or user_id == self.selected_playlist[
-                'user_id'] or await database.is_collaborator(user_id, self.selected_playlist['playlist_id']):
-                contents = await database.get_playlist_contents(self.selected_playlist['playlist_id'])
+                'user_id'] or await db.is_collaborator(user_id, self.selected_playlist['playlist_id']):
+                contents = await db.get_playlist_contents(self.selected_playlist['playlist_id'])
                 embed = discord.Embed(title=f"Playlist: {self.selected_playlist['name']}",
                                       color=discord.Color.dark_red())
                 for song in contents:
@@ -960,7 +984,7 @@ class PlaylistSelection(discord.ui.View):
                               color=discord.Color.dark_red())
         embed.add_field(name="Privacy", value="Public" if self.selected_playlist['privacy'] == 1 else "Private")
         if self.selected_playlist['privacy'] == 1:  # Public playlist
-            contents = await database.get_playlist_contents(self.selected_playlist['playlist_id'])
+            contents = await db.get_playlist_contents(self.selected_playlist['playlist_id'])
             embed.add_field(name="Song Count", value=str(len(contents)))
 
         return embed
@@ -981,7 +1005,7 @@ async def create_playlist_selection_embeds(playlists, bot):
                               color=discord.Color.dark_red())
         embed.add_field(name="Privacy", value="Public" if playlist['privacy'] == 1 else "Private")
         if playlist['privacy'] == 1:  # Public playlist
-            contents = await database.get_playlist_contents(playlist['playlist_id'])
+            contents = await db.get_playlist_contents(playlist['playlist_id'])
             embed.add_field(name="Song Count", value=str(len(contents)))
         embeds.append(embed)
 
@@ -1022,7 +1046,7 @@ async def create_edit_interface(interaction: discord.Interaction, playlist):
     # Callback function for changing playlist privacy
     async def privacy_callback(interaction: discord.Interaction):
         selected_privacy = int(interaction.data['values'][0])
-        await database.update_playlist_privacy(playlist['playlist_id'], selected_privacy)
+        await db.update_playlist_privacy(playlist['playlist_id'], selected_privacy)
         await interaction.response.send_message(
             f"Playlist privacy updated to {'Public' if selected_privacy == 1 else 'Private'} 🎶", ephemeral=True)
 
@@ -1033,7 +1057,7 @@ async def create_edit_interface(interaction: discord.Interaction, playlist):
 
     # Callback function for deleting a collaborator from the playlist
     async def delete_collaborator_callback(interaction: discord.Interaction):
-        collaborators = await database.get_playlist_collaborators(playlist['playlist_id'])
+        collaborators = await db.get_playlist_collaborators(playlist['playlist_id'])
         if not collaborators:
             await interaction.followup.send("No collaborators to delete. 🎶", ephemeral=True)
             return
@@ -1084,7 +1108,7 @@ async def create_collaborator_delete_interface(playlist_id, collaborators, clien
     # Callback function for selecting a collaborator to delete
     async def select_callback(interaction: discord.Interaction):
         selected_user_id = int(select.values[0])
-        await database.remove_collaborator_from_playlist(playlist_id, selected_user_id)
+        await db.remove_collaborator_from_playlist(playlist_id, selected_user_id)
         await interaction.followup.send(f"Collaborator {selected_user_id} has been removed. 🎶", ephemeral=True)
 
     select.callback = select_callback
@@ -1105,7 +1129,7 @@ class EditPlaylistNameModal(discord.ui.Modal, title="Edit Playlist Name"):
     # Callback function for submitting the new playlist name
     async def on_submit(self, interaction: discord.Interaction):
         new_name = self.children[0].value
-        await database.edit_playlist_name(self.playlist_id, new_name)
+        await db.edit_playlist_name(self.playlist_id, new_name)
         await interaction.response.send_message(f"Playlist name updated to '{new_name}'. 🎶", ephemeral=True)
 
 

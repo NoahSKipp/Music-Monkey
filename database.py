@@ -21,7 +21,6 @@ MYSQL_CONFIG = {
     'autocommit': True
 }
 
-
 # Setup database
 async def setup_database():
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
@@ -31,6 +30,7 @@ async def setup_database():
                 guild_id BIGINT NOT NULL,
                 dj_only_enabled BOOLEAN DEFAULT 0,
                 dj_role_id BIGINT,
+                restricted_commands TEXT DEFAULT NULL,
                 updates_enabled TINYINT DEFAULT 1,
                 updates_channel_id BIGINT,
                 PRIMARY KEY (guild_id)
@@ -91,28 +91,29 @@ async def setup_database():
                 invitee_id BIGINT NOT NULL,
                 FOREIGN KEY (playlist_id) REFERENCES playlists(playlist_id)
             );
+            CREATE TABLE IF NOT EXISTS command_cooldowns (
+                command_name VARCHAR(255) PRIMARY KEY,
+                cooldown INT NOT NULL
+            );
             ''')
             await conn.commit()
 
-
-# Returns the dj_only_enabled attribute of a given guild.
 async def get_dj_only_enabled(guild_id):
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
         async with conn.cursor() as cur:
-            await cur.execute('SELECT dj_only_enabled FROM guilds WHERE guild_id = %s', guild_id)
+            await cur.execute('SELECT dj_only_enabled FROM guilds WHERE guild_id = %s', (guild_id,))
             result = await cur.fetchone()
+            if result is None:
+                return False
             return bool(result[0])
 
 
-# Sets the dj_only_enabled attribute of a given guild.
 async def set_dj_only_enabled(guild_id, dj_only):
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
         async with conn.cursor() as cur:
             await cur.execute('UPDATE guilds SET dj_only_enabled = %s WHERE guild_id = %s', (dj_only, guild_id))
             await conn.commit()
 
-
-# Gets the DJ role of a given guild.
 async def get_dj_role(guild_id):
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
         async with conn.cursor() as cur:
@@ -120,13 +121,56 @@ async def get_dj_role(guild_id):
             result = await cur.fetchone()
             return result[0] if result else None
 
-
-# Sets the given role as the DJ role of a given guild.
 async def set_dj_role(guild_id, role_id):
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
         async with conn.cursor() as cur:
             await cur.execute('UPDATE guilds SET dj_role_id = %s WHERE guild_id = %s', (role_id, guild_id))
             await conn.commit()
+
+async def get_restricted_commands(guild_id: int):
+    async with aiomysql.connect(**MYSQL_CONFIG) as conn:
+        async with conn.cursor() as cur:
+            await cur.execute('SELECT restricted_commands FROM guilds WHERE guild_id=%s', (guild_id,))
+            result = await cur.fetchone()
+            if result:
+                return result[0]  # Assuming the field contains a list or string of commands
+            return None
+
+async def add_restricted_command(guild_id: int, command_name: str):
+    async with aiomysql.connect(**MYSQL_CONFIG) as conn:
+        async with conn.cursor() as cur:
+            await cur.execute('SELECT restricted_commands FROM guilds WHERE guild_id=%s', (guild_id,))
+            result = await cur.fetchone()
+            if result:
+                commands = result[0]
+                if commands:
+                    commands = commands.split(',')
+                    if command_name not in commands:
+                        commands.append(command_name)
+                        commands = ','.join(commands)
+                    else:
+                        return  # Command is already restricted
+                else:
+                    commands = command_name
+                await cur.execute('UPDATE guilds SET restricted_commands=%s WHERE guild_id=%s', (commands, guild_id))
+            else:
+                await cur.execute('INSERT INTO guilds (guild_id, restricted_commands) VALUES (%s, %s)', (guild_id, command_name))
+            await conn.commit()
+
+async def remove_restricted_command(guild_id: int, command_name: str):
+    async with aiomysql.connect(**MYSQL_CONFIG) as conn:
+        async with conn.cursor() as cur:
+            await cur.execute('SELECT restricted_commands FROM guilds WHERE guild_id=%s', (guild_id,))
+            result = await cur.fetchone()
+            if result:
+                commands = result[0]
+                if commands:
+                    commands = commands.split(',')
+                    if command_name in commands:
+                        commands.remove(command_name)
+                        commands = ','.join(commands) if commands else None
+                        await cur.execute('UPDATE guilds SET restricted_commands=%s WHERE guild_id=%s', (commands, guild_id))
+                        await conn.commit()
 
 
 # Checks if a given guild_id is in the guilds table.

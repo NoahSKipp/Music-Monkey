@@ -11,6 +11,7 @@ import google.generativeai as genai
 import logging
 import config
 import aiohttp
+import database as db
 
 # API key for Google Gemini
 genai.configure(api_key=config.GEMINI)
@@ -20,6 +21,28 @@ class MonkeyFactCog(commands.Cog):
         super().__init__()
         self.bot = bot
         discord.utils.setup_logging(level=logging.INFO)
+
+    async def interaction_check(self, interaction: discord.Interaction):
+        logging.debug(f'Interaction check for {interaction.user} in guild {interaction.guild_id}')
+        await db.enter_guild(interaction.guild_id)
+        await db.enter_user(interaction.user.id, interaction.guild_id)
+        dj_only = await db.get_dj_only_enabled(interaction.guild_id)
+        dj_role_id = await db.get_dj_role(interaction.guild_id)
+
+        if not dj_only:
+            return True
+
+        has_permissions = interaction.user.guild_permissions.manage_roles
+        is_dj = any(role.id == dj_role_id for role in interaction.user.roles)
+
+        if has_permissions or is_dj:
+            return True
+
+        await interaction.response.send_message(
+            "DJ-only mode is enabled. You need DJ privileges to use this.",
+            ephemeral=True
+        )
+        return False
 
     async def error_handler(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         if isinstance(error, app_commands.CommandOnCooldown):
@@ -57,7 +80,7 @@ class MonkeyFactCog(commands.Cog):
             embed = discord.Embed(
                 title="Monkey Fact <a:monkeyflip:1237140606296522762>",
                 description=response,
-                color=discord.Color.green()
+                color=discord.Color.gold()
             )
             await interaction.followup.send(embed=embed, ephemeral=False)
         except Exception as e:

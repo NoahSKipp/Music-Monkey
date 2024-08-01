@@ -15,15 +15,6 @@ from datetime import datetime, timedelta
 import asyncio
 import aiohttp
 
-
-# Set up the role view class for the DJ selection
-class SelectRoleView(discord.ui.View):
-    def __init__(self, options, user_id):
-        super().__init__()
-        self.user_id = user_id
-        self.add_item(RoleSelect(options))
-
-
 # Set up the view class for the queue buttons
 class QueuePaginationView(ui.View):
     def __init__(self, cog, interaction, current_page, total_pages):
@@ -83,26 +74,6 @@ def format_duration(ms):
         return f"{hours}:{minutes:02}:{seconds:02}"
     else:
         return f"{minutes}:{seconds:02}"
-
-
-# Set up the class for the DJ role selection
-class RoleSelect(discord.ui.Select):
-    def __init__(self, options):
-        super().__init__(placeholder='Choose a DJ role...', min_values=1, max_values=1, options=options)
-
-    async def callback(self, interaction: discord.Interaction):
-        # Ensure the right user is interacting with the select menu
-        if interaction.user.id != self.view.user_id:
-            await interaction.response.send_message("You do not have permission to interact with this.", ephemeral=True)
-            return
-
-        # Update the DJ role in the database
-        role_id = int(self.values[0])
-        await db.set_dj_role(interaction.guild_id, role_id)
-        role_name = next((option.label for option in self.options if option.value == self.values[0]), 'Unknown Role')
-        await interaction.response.send_message(f"The DJ role has been set to **{role_name}**.", ephemeral=True)
-        # Stop the view to prevent further interactions
-        self.view.stop()
 
 
 # Set up the class for Track
@@ -235,25 +206,27 @@ class MusicCog(commands.Cog):
 
     async def interaction_check(self, interaction: discord.Interaction):
         logging.debug(f'Interaction check for {interaction.user} in guild {interaction.guild_id}')
-        await db.enter_guild(interaction.guild_id)
-        await db.enter_user(interaction.user.id, interaction.guild_id)
+
         dj_only = await db.get_dj_only_enabled(interaction.guild_id)
         dj_role_id = await db.get_dj_role(interaction.guild_id)
+        restricted_commands = await db.get_restricted_commands(interaction.guild_id)
 
         if not dj_only:
             return True
 
-        has_permissions = interaction.user.guild_permissions.manage_roles
-        is_dj = any(role.id == dj_role_id for role in interaction.user.roles)
+        if interaction.command.name in restricted_commands:
+            has_permissions = interaction.user.guild_permissions.manage_roles
+            is_dj = any(role.id == dj_role_id for role in interaction.user.roles)
 
-        if has_permissions or is_dj:
-            return True
+            if has_permissions or is_dj:
+                return True
 
-        await interaction.response.send_message(
-            "DJ-only mode is enabled. You need DJ privileges to use this.",
-            ephemeral=True
-        )
-        return False
+            await interaction.response.send_message(
+                "DJ-only mode is enabled. You need DJ privileges to use this command.",
+                ephemeral=True
+            )
+            return False
+        return True
 
     @commands.Cog.listener()
     async def on_wavelink_node_ready(self, payload: wavelink.NodeReadyEventPayload):
@@ -430,7 +403,6 @@ class MusicCog(commands.Cog):
                         player.now_playing_message = await channel.send(embed=embed)
 
     # Sets up the player queue display
-
     async def display_queue(self, interaction: discord.Interaction, page: int, edit=False):
         # Gets the player object of the bot in the current guild's voice channel
         player = interaction.guild.voice_client
@@ -458,52 +430,6 @@ class MusicCog(commands.Cog):
             await interaction.message.edit(embed=embed, view=view)
         else:
             await interaction.response.send_message(embed=embed, view=view, ephemeral=False)
-
-    @discord.app_commands.checks.cooldown(1, 3)
-    @app_commands.command(name='dj', description='Toggle DJ-only command restrictions')
-    async def toggle_dj_mode(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
-        if not interaction.user.guild_permissions.manage_roles:
-            await interaction.followup.send(
-                "You do not have the required permissions to use this command.",
-                ephemeral=True
-            )
-            return
-
-        guild_id = interaction.guild_id
-        current_state = await db.get_dj_only_enabled(guild_id) or False
-        new_state = not current_state
-        await db.set_dj_only_enabled(guild_id, new_state)
-
-        await interaction.followup.send(f'DJ-only mode is now {"enabled" if new_state else "disabled"}.')
-
-    @discord.app_commands.checks.cooldown(1, 3)
-    @app_commands.command(name='setdj', description='Set a DJ role')
-    async def set_dj_role(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
-        if not interaction.user.guild_permissions.manage_roles:
-            await interaction.followup.send(
-                "You do not have the required permissions to use this command.",
-                ephemeral=True
-            )
-            return
-
-        roles = [role for role in interaction.guild.roles if role.name != "@everyone" and not role.is_bot_managed()]
-        options = [
-            discord.SelectOption(label=role.name, value=str(role.id), description=f"Set {role.name} as the DJ role")
-            for role in roles
-        ]
-        view = SelectRoleView(options, interaction.user.id)
-        await interaction.followup.send("Please select a DJ role from the menu:", view=view, ephemeral=True)
-
-        await view.wait()
-
-        if view.values:
-            selected_role_id = int(view.values[0])
-            await db.set_dj_role(interaction.guild_id, selected_role_id)
-            await interaction.followup.send(f"DJ role updated successfully to {view.selected_role_name}.")
-        else:
-            await interaction.followup.send("No DJ role selected.")
 
     @discord.app_commands.checks.cooldown(1, 3)
     @app_commands.command(name='play', description='Play or queue a song from a URL or search term')
@@ -1373,28 +1299,26 @@ class MusicButtons(ui.View):
     async def interaction_check(self, interaction: discord.Interaction):
         logging.debug(f'Interaction check for {interaction.user} in guild {interaction.guild_id}')
 
-        # Retrieve the DJ-only mode status and DJ role ID from the database
         dj_only = await db.get_dj_only_enabled(interaction.guild_id)
         dj_role_id = await db.get_dj_role(interaction.guild_id)
+        restricted_commands = await db.get_restricted_commands(interaction.guild_id)
 
-        # If DJ-only mode is not enabled, allow all interactions
         if not dj_only:
             return True
 
-        # Check if the user has manage_roles permission or the specific DJ role
-        has_permissions = interaction.user.guild_permissions.manage_roles
-        is_dj = any(role.id == dj_role_id for role in interaction.user.roles)
+        if interaction.command.name in restricted_commands:
+            has_permissions = interaction.user.guild_permissions.manage_roles
+            is_dj = any(role.id == dj_role_id for role in interaction.user.roles)
 
-        # If the user has the necessary permissions or the DJ role, allow the interaction
-        if has_permissions or is_dj:
-            return True
+            if has_permissions or is_dj:
+                return True
 
-        # If the user does not have the necessary permissions, send a message and deny the interaction
-        await interaction.response.send_message(
-            "DJ-only mode is enabled. You need DJ privileges to use this.",
-            ephemeral=True
-        )
-        return False
+            await interaction.response.send_message(
+                "DJ-only mode is enabled. You need DJ privileges to use this command.",
+                ephemeral=True
+            )
+            return False
+        return True
 
     async def has_voted(self, user: discord.User, guild: discord.Guild) -> bool:
         # Log guild and role checks
