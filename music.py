@@ -207,13 +207,20 @@ class MusicCog(commands.Cog):
     async def interaction_check(self, interaction: discord.Interaction):
         logging.debug(f'Interaction check for {interaction.user} in guild {interaction.guild_id}')
 
+        # Fetch DJ-only mode status, DJ role ID, and restricted commands from the database
         dj_only = await db.get_dj_only_enabled(interaction.guild_id)
         dj_role_id = await db.get_dj_role(interaction.guild_id)
         restricted_commands = await db.get_restricted_commands(interaction.guild_id)
 
+        # If DJ-only mode is not enabled, allow the interaction
         if not dj_only:
             return True
 
+        # Skip restriction checks if restricted_commands is None
+        if restricted_commands is None:
+            return True
+
+        # Check if the command is restricted and validate user permissions
         if interaction.command.name in restricted_commands:
             has_permissions = interaction.user.guild_permissions.manage_roles
             is_dj = any(role.id == dj_role_id for role in interaction.user.roles)
@@ -221,11 +228,13 @@ class MusicCog(commands.Cog):
             if has_permissions or is_dj:
                 return True
 
+            # Inform the user they lack the necessary privileges
             await interaction.response.send_message(
                 "DJ-only mode is enabled. You need DJ privileges to use this command.",
                 ephemeral=True
             )
             return False
+
         return True
 
     @commands.Cog.listener()
@@ -1299,13 +1308,20 @@ class MusicButtons(ui.View):
     async def interaction_check(self, interaction: discord.Interaction):
         logging.debug(f'Interaction check for {interaction.user} in guild {interaction.guild_id}')
 
+        # Fetch DJ-only mode status, DJ role ID, and restricted commands from the database
         dj_only = await db.get_dj_only_enabled(interaction.guild_id)
         dj_role_id = await db.get_dj_role(interaction.guild_id)
         restricted_commands = await db.get_restricted_commands(interaction.guild_id)
 
+        # If DJ-only mode is not enabled, allow the interaction
         if not dj_only:
             return True
 
+        # Skip restriction checks if restricted_commands is None
+        if restricted_commands is None:
+            return True
+
+        # Check if the command is restricted and validate user permissions
         if interaction.command.name in restricted_commands:
             has_permissions = interaction.user.guild_permissions.manage_roles
             is_dj = any(role.id == dj_role_id for role in interaction.user.roles)
@@ -1313,11 +1329,13 @@ class MusicButtons(ui.View):
             if has_permissions or is_dj:
                 return True
 
+            # Inform the user they lack the necessary privileges
             await interaction.response.send_message(
                 "DJ-only mode is enabled. You need DJ privileges to use this command.",
                 ephemeral=True
             )
             return False
+
         return True
 
     async def has_voted(self, user: discord.User, guild: discord.Guild) -> bool:
