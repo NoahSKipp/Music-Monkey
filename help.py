@@ -130,8 +130,11 @@ class HelpCog(commands.Cog):
 
     def get_settings_commands(self):
         return ("**Settings and Configuration Commands:**\n"
-                "`/dj` - Toggle DJ-only command restrictions.\n"
-                "`/setdj` - Set a DJ role for managing the bot.\n"
+                "`/config` - Displays the bot configuration details.\n"
+                "`/dj add [command_name]` - Add a command to the DJ list.\n"
+                "`/dj remove [command_name]` - Remove a command from the DJ restricted list.\n"
+                "`/dj toggle` - Toggle DJ-only command restrictions.\n"
+                "`/dj set` - Set a DJ role for managing the bot.\n"
                 "`/updates toggle [enable | disable]` - Toggle receiving bot announcements on or off.\n"
                 "`/updates set` - Set the current channel to receive bot announcements.")
 
@@ -148,7 +151,7 @@ class HelpCog(commands.Cog):
 
     def get_support_info(self):
         return ("**Support:**\n"
-                "Need help? Visit our **[Support Server](https://discord.gg/kyamXgVU68)** for more detailed support "
+                "Need help? Visit our **[Support Server](https://discord.gg/6WqKtrXjhn)** for more detailed support "
                 "from the developer and the community.")
 
     def get_fun_commands(self):
