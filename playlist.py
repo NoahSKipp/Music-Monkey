@@ -12,7 +12,7 @@ import wavelink
 import aiohttp
 import config
 import logging
-
+import json
 
 # This function provides autocomplete suggestions for playlist names based on the current input
 async def playlist_autocomplete(interaction: discord.Interaction, current: str):
@@ -171,9 +171,10 @@ class Playlist(commands.GroupCog, group_name="playlist"):
         try:
             tracks = []
             for song in songs:
-                search_result = await wavelink.Playable.search(song['uri'])
-                if search_result:
-                    tracks.append(search_result[0])
+                # Deserialize raw_data JSON string back to dictionary
+                raw_data = json.loads(song['raw_data'])
+                track = wavelink.Playable(data=raw_data)  # Use raw_data to reconstruct the Playable
+                tracks.append(track)
 
             for track in tracks:
                 track.extras = {"requester_id": interaction.user.id}
@@ -232,9 +233,10 @@ class Playlist(commands.GroupCog, group_name="playlist"):
     async def has_voted(self, user: discord.User, guild: discord.Guild) -> bool:
         print(f"Checking vote status for user {user.id} in guild {guild.id}")
 
-        if guild.id == config.EXEMPT_GUILD_ID:
+        if guild.id == 1253445742388056064:
             return True
-        if guild.id == '1253445742388056064':
+
+        if guild.id == config.EXEMPT_GUILD_ID:
             return True
 
         exempt_guild = self.bot.get_guild(config.EXEMPT_GUILD_ID)
@@ -361,14 +363,15 @@ class Playlist(commands.GroupCog, group_name="playlist"):
         song_id = track.identifier
         song_name = track.title
         artist = track.author
-        uri = track.uri
+        raw_data = track.raw_data  # Use raw_data instead of URI
 
-        result = await db.add_song_to_playlist(user_id, name, song_id, song_name, artist, uri)
+        result = await db.add_song_to_playlist(user_id, name, song_id, song_name, artist, raw_data)
         if result == 'Playlist not found':
             await interaction.followup.send("Sorry, I couldn't find that playlist. 🎶", ephemeral=True)
         else:
-            await interaction.followup.send(f"Added song '{song_name}' by '{artist}' to playlist '{name}'! <a:tadaMM:1258473486003732642>",
-                                            ephemeral=True)
+            await interaction.followup.send(
+                f"Added song '{song_name}' by '{artist}' to playlist '{name}'! <a:tadaMM:1258473486003732642>",
+                ephemeral=True)
 
     @add.error
     async def add_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
@@ -403,12 +406,14 @@ class Playlist(commands.GroupCog, group_name="playlist"):
             await interaction.followup.send("Sorry, I couldn't find that playlist. 🎶", ephemeral=True)
         else:
             await interaction.followup.send(
-                f"Removed song '{track.title}' by '{track.author}' from playlist '{name}'! <a:tadaMM:1258473486003732642>", ephemeral=True)
+                f"Removed song '{track.title}' by '{track.author}' from playlist '{name}'! <a:tadaMM:1258473486003732642>",
+                ephemeral=True)
 
     @remove.error
     async def remove_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         await self.error_handler(interaction, error)
 
+    # Command to remove duplicate songs from a playlist
     # Command to remove duplicate songs from a playlist
     @app_commands.command(name="dedupe", description="Remove duplicate songs from a playlist")
     @app_commands.describe(name="Name of the playlist")
@@ -429,7 +434,8 @@ class Playlist(commands.GroupCog, group_name="playlist"):
         if result == 'Playlist not found':
             await interaction.followup.send("Sorry, I couldn't find that playlist. 🎶", ephemeral=True)
         else:
-            await interaction.followup.send(f"Yay! Removed duplicate songs from playlist '{name}'. <a:tadaMM:1258473486003732642>", ephemeral=True)
+            await interaction.followup.send(
+                f"Yay! Removed duplicate songs from playlist '{name}'. <a:tadaMM:1258473486003732642>", ephemeral=True)
 
     @dedupe.error
     async def dedupe_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
@@ -1001,6 +1007,7 @@ class PlaylistSelection(discord.ui.View):
         return embed
 
 
+# Creates embeds and a view for selecting a playlist
 # Creates embeds and a view for selecting a playlist
 async def create_playlist_selection_embeds(playlists, bot):
     view = PlaylistSelection(playlists, bot)
