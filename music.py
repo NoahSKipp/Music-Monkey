@@ -1215,7 +1215,6 @@ class MusicCog(commands.Cog):
         await self.error_handler(interaction, error)
 
 
-
 # Adds the cog to the bot
 async def setup(bot):
     await bot.add_cog(MusicCog(bot))
