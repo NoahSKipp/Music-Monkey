@@ -13,7 +13,7 @@ import aiohttp
 import config
 import logging
 import json
-from buttons import (PlaylistEditSelectView, PlaylistPlaySelectView, ConfirmDeleteView,
+from playlistbuttons import (PlaylistEditSelectView, PlaylistPlaySelectView, ConfirmDeleteView,
                      PlaylistPaginator, Paginator, PlaylistSelection,
                      create_playlist_selection_embeds, create_invite_view_embeds,
                      create_edit_interface)
