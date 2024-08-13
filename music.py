@@ -440,10 +440,16 @@ class MusicCog(commands.Cog):
         else:
             await interaction.response.send_message(embed=embed, view=view, ephemeral=False)
 
-    @discord.app_commands.checks.cooldown(1, 3)
+    @app_commands.checks.cooldown(1, 3)
     @app_commands.command(name='play', description='Play or queue a song from a URL or search term')
-    @app_commands.describe(query='URL or search term of the song to play')
-    async def play(self, interaction: Interaction, query: str):
+    @app_commands.describe(query='URL or search term of the song to play',
+                           source='The source to search from (YouTube, Spotify, Deezer)')
+    @app_commands.choices(source=[
+        app_commands.Choice(name='YouTube', value='YouTube'),
+        app_commands.Choice(name='Spotify', value='Spotify'),
+        app_commands.Choice(name='Deezer', value='Deezer')
+    ])
+    async def play(self, interaction: Interaction, query: str, source: str = 'YouTube'):
         try:
             await interaction.response.defer(ephemeral=False)
 
@@ -458,20 +464,45 @@ class MusicCog(commands.Cog):
                         "You must be in the same voice channel as the bot to use this command.", ephemeral=True)
                     return
 
-            await self.play_song(interaction, query)
+            await self.play_song(interaction, query, source)
         except discord.errors.NotFound:
             logging.error("Interaction not found or expired.")
         except Exception as e:
             logging.error(f"Unexpected error: {e}")
 
-    async def play_song(self, interaction: Interaction, query: str):
+    async def play_song(self, interaction: Interaction, query: str, source: str):
         try:
             await self.vote_reminder(interaction)
 
+            # Check if the source is restricted to voters only
+            if source != 'YouTube':
+                if not await self.has_voted(interaction.user, interaction.guild):
+                    embed = discord.Embed(
+                        description=(
+                            "Playing tracks from sources other than YouTube is a special feature just for our awesome voters.\n "
+                            "Please take a moment to [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) to unlock this perk. \n"
+                            "As a bonus, Server Boosters and active members of [our community](https://discord.gg/6WqKtrXjhn) get to skip this step and enjoy all the tunes! <a:tadaMM:1258473486003732642> "
+                        ),
+                        color=discord.Color.green()
+                    )
+                    embed.set_author(name="Unlock This Feature!", icon_url=self.bot.user.display_avatar.url)
+                    embed.set_footer(text="Thanks for your support!")
+                    await interaction.followup.send(embed=embed, ephemeral=True)
+                    return
+
+            # Determine the search prefix based on the source
             if query.startswith("https://") or query.startswith("http://"):
-                results = await wavelink.Playable.search(query)
+                # If it's a URL, we don't need a search prefix
+                search_query = query
             else:
-                results = await wavelink.Playable.search(query, source=wavelink.enums.TrackSource.YouTube)
+                if source == 'Spotify':
+                    search_query = f'spsearch:{query}'
+                elif source == 'Deezer':
+                    search_query = f'dzsearch:{query}'
+                else:
+                    search_query = f'ytsearch:{query}'  # Default to YouTube
+
+            results = await wavelink.Playable.search(search_query)
 
             if not results:
                 await interaction.followup.send('No tracks found with that query.', ephemeral=True)
@@ -1400,53 +1431,6 @@ class MusicButtons(ui.View):
             # Respond if the queue is empty
             await interaction.response.send_message("The queue is empty.", ephemeral=True)
 
-    # Sets up buttons for volume increase
-    @ui.button(label='VOL +', style=ButtonStyle.green, custom_id='vol_up_button')
-    async def volume_up(self, interaction: Interaction, button: ui.Button):
-        await interaction.response.defer(ephemeral=True)
-        if not await self.cog.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
-                                            ephemeral=True)
-            return
-
-        if not await self.cog.has_voted(interaction.user, interaction.guild):
-            embed = discord.Embed(
-                title="Unlock This Feature!",
-                description=(
-                    "Hey there, music lover! 🎶 This feature is available to our awesome voters. "
-                    "Please [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) "
-                    "to unlock this perk. Server Boosters and active members of [our community](https://discord.gg/6WqKtrXjhn) get to skip this step! <a:tadaMM:1258473486003732642>"
-                ),
-                color=discord.Color.green()
-            )
-            embed.set_author(name="Music Monkey", icon_url=self.cog.bot.user.display_avatar.url)
-            embed.set_footer(text="Thanks for your support!")
-            await interaction.followup.send(embed=embed, ephemeral=True)
-            return
-
-        new_volume = min(self.player.volume + 10, 100)  # Volume should not exceed 100
-        await self.player.set_volume(new_volume)
-        await interaction.followup.send(f'Volume increased to {new_volume}%', ephemeral=True)
-
-    # Sets up button to pause music playback
-    @ui.button(label='PAUSE', style=ButtonStyle.blurple, custom_id='pause_button')
-    async def pause(self, interaction: Interaction, button: ui.Button):
-        await interaction.response.defer(ephemeral=True)
-        if not await self.cog.user_in_voice(interaction):
-            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
-                                            ephemeral=True)
-            return
-        # Check the current paused state directly from the player and toggle it
-        if self.player.paused:
-            await self.player.pause(False)  # If currently paused, resume playback
-            button.label = 'PAUSE'  # Update the button label to 'Pause'
-        else:
-            await self.player.pause(True)  # If currently playing, pause playback
-            button.label = 'RESUME'  # Update the button label to 'Resume'
-
-        # Edit the message to reflect the new button label
-        await interaction.followup.edit_message(view=self, message_id=interaction.message.id)
-
     # Sets up the button for volume decrease
     @ui.button(label='VOL -', style=ButtonStyle.green, custom_id='vol_down_button')
     async def volume_down(self, interaction: Interaction, button: ui.Button):
@@ -1475,20 +1459,28 @@ class MusicButtons(ui.View):
         await self.player.set_volume(new_volume)
         await interaction.followup.send(f'Volume decreased to {new_volume}%', ephemeral=True)
 
-    # Sets up the button to skip the current song
-    @ui.button(label='SKIP', style=ButtonStyle.green, custom_id='skip_button')
-    async def skip(self, interaction: Interaction, button: ui.Button):
+    # Sets up button to pause or resume music playback
+    @ui.button(label='PAUSE', style=ButtonStyle.blurple, custom_id='pause_button')
+    async def pause(self, interaction: Interaction, button: ui.Button):
         await interaction.response.defer(ephemeral=True)
         if not await self.cog.user_in_voice(interaction):
             await interaction.followup.send("You must be in the same voice channel as me to use this command.",
                                             ephemeral=True)
             return
-        await self.player.skip()
-        await interaction.followup.send('Skipped the current song', ephemeral=True)
+        # Check the current paused state directly from the player and toggle it
+        if self.player.paused:
+            await self.player.pause(False)  # If currently paused, resume playback
+            button.label = 'PAUSE'  # Update the button label to 'Pause'
+        else:
+            await self.player.pause(True)  # If currently playing, pause playback
+            button.label = 'PLAY'  # Update the button label to 'Play'
 
-    # Sets up the button to toggle the loop mode
-    @ui.button(label='LOOP', style=ButtonStyle.green, custom_id='loop_button')
-    async def toggle_loop(self, interaction: Interaction, button: ui.Button):
+        # Edit the message to reflect the new button label
+        await interaction.followup.edit_message(view=self, message_id=interaction.message.id)
+
+    # Sets up buttons for volume increase
+    @ui.button(label='VOL +', style=ButtonStyle.green, custom_id='vol_up_button')
+    async def volume_up(self, interaction: Interaction, button: ui.Button):
         await interaction.response.defer(ephemeral=True)
         if not await self.cog.user_in_voice(interaction):
             await interaction.followup.send("You must be in the same voice channel as me to use this command.",
@@ -1510,20 +1502,44 @@ class MusicButtons(ui.View):
             await interaction.followup.send(embed=embed, ephemeral=True)
             return
 
+        new_volume = min(self.player.volume + 10, 100)  # Volume should not exceed 100
+        await self.player.set_volume(new_volume)
+        await interaction.followup.send(f'Volume increased to {new_volume}%', ephemeral=True)
+
+    # Sets up the button to skip the current song
+    @ui.button(label='SKIP', style=ButtonStyle.green, custom_id='skip_button')
+    async def skip(self, interaction: Interaction, button: ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        if not await self.cog.user_in_voice(interaction):
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
+                                            ephemeral=True)
+            return
+        await self.player.skip()
+        await interaction.followup.send('Skipped the current song', ephemeral=True)
+
+    # Sets up the button to toggle loop mode
+    @ui.button(label='LOOP', style=ButtonStyle.green, custom_id='loop_button')
+    async def toggle_loop(self, interaction: Interaction, button: ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        if not await self.cog.user_in_voice(interaction):
+            await interaction.followup.send("You must be in the same voice channel as me to use this command.",
+                                            ephemeral=True)
+            return
+
         player = interaction.guild.voice_client
         current_mode = player.queue.mode
 
         if current_mode == wavelink.QueueMode.normal:
             player.queue.mode = wavelink.QueueMode.loop
-            button.label = "LOOP ALL"
+            button.label = 'LOOP SONG'  # Update the button label to loop current song
             response = "Looping current track enabled."
         elif current_mode == wavelink.QueueMode.loop:
             player.queue.mode = wavelink.QueueMode.loop_all
-            button.label = "NORMAL"
+            button.label = 'LOOP QUEUE'  # Update the button label to loop entire queue
             response = "Looping all tracks enabled."
         elif current_mode == wavelink.QueueMode.loop_all:
             player.queue.mode = wavelink.QueueMode.normal
-            button.label = "LOOP"
+            button.label = 'LOOP OFF'  # Update the button label to disable loop
             response = "Looping disabled."
 
         await interaction.followup.edit_message(view=self, message_id=interaction.message.id)
@@ -1552,10 +1568,7 @@ class MusicButtons(ui.View):
             return
 
         # Set the was_forcefully_stopped flag
-        if hasattr(self.player, 'was_manually_stopped'):
-            self.player.was_forcefully_stopped = True
-        else:
-            self.player.was_forcefully_stopped = True
+        self.player.was_forcefully_stopped = True
 
         # Stops the current track, clears the queue, and disconnects the player from the channel
         await self.player.stop()
@@ -1626,6 +1639,38 @@ class MusicButtons(ui.View):
             response = "Autoplay disabled."
         await interaction.followup.edit_message(view=self, message_id=interaction.message.id)
         await interaction.followup.send(response, ephemeral=True)
+
+    # Sets up the button for adding a song to a playlist
+    @ui.button(label='LIKE', style=ButtonStyle.red, custom_id='heart_button')
+    async def add_to_playlist(self, interaction: Interaction, button: ui.Button):
+        await interaction.response.defer(ephemeral=True)
+
+        if not await self.cog.has_voted(interaction.user, interaction.guild):
+            embed = discord.Embed(
+                title="Unlock This Feature!",
+                description=(
+                    "Hey there, music lover! 🎶 This feature is available to our awesome voters. "
+                    "Please [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) "
+                    "to unlock this perk. Server Boosters and active members of [our community](https://discord.gg/6WqKtrXjhn) get to skip this step! <a:tadaMM:1258473486003732642>"
+                ),
+                color=discord.Color.green()
+            )
+            embed.set_author(name="Music Monkey", icon_url=self.cog.bot.user.display_avatar.url)
+            embed.set_footer(text="Thanks for your support!")
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
+
+        track = self.player.current  # Get the currently playing track
+        if not track:
+            await interaction.followup.send("No track is currently playing.", ephemeral=True)
+            return
+
+        # Call the function in Playlist cog to handle the add-to-playlist logic
+        playlist_cog = self.cog.bot.get_cog("Playlist")
+        if playlist_cog:
+            await playlist_cog.add_song_to_playlist_via_heart_button(interaction, track)
+        else:
+            await interaction.followup.send("Playlist functionality is currently unavailable.", ephemeral=True)
 
 
 # Adds the cog to the bot

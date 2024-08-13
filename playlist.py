@@ -166,6 +166,30 @@ class Playlist(commands.GroupCog, group_name="playlist"):
 
         return True
 
+    async def add_song_to_playlist_via_heart_button(self, interaction: discord.Interaction, track: wavelink.Playable):
+        user_id = interaction.user.id
+        guild_id = interaction.guild_id
+
+        # Fetch user's playlists
+        playlists = await db.get_user_playlists(user_id)
+
+        if not playlists:
+            # No playlists found, create a new one called "{User}'s Favorites"
+            playlist_name = f"{interaction.user.name}'s Favorites"
+            await db.create_playlist(user_id, guild_id, playlist_name, privacy=0)
+            await db.add_song_to_playlist(user_id, playlist_name, track.identifier, track.title, track.author, track.raw_data)
+            await interaction.followup.send(f"Added to your new playlist '{playlist_name}'! 🎶", ephemeral=True)
+        elif len(playlists) == 1:
+            # Only one playlist found, add to that playlist
+            playlist_name = playlists[0]['name']
+            await db.add_song_to_playlist(user_id, playlist_name, track.identifier, track.title, track.author, track.raw_data)
+            await interaction.followup.send(f"Added to your playlist '{playlist_name}'! 🎶", ephemeral=True)
+        else:
+            # Multiple playlists found, show a dropdown menu to select one
+            view = PlaylistSelectView(playlists, track)
+            await interaction.followup.send("Select a playlist to add the song to:", view=view, ephemeral=True)
+
+
     # Modified play_song function to handle playlist playback
     async def play_songs(self, interaction, songs, player):
         try:
@@ -233,7 +257,7 @@ class Playlist(commands.GroupCog, group_name="playlist"):
     async def has_voted(self, user: discord.User, guild: discord.Guild) -> bool:
         print(f"Checking vote status for user {user.id} in guild {guild.id}")
 
-        if guild.id == 1253445742388056064:
+        if guild.id == 1229102559453777991:
             return True
 
         if guild.id == config.EXEMPT_GUILD_ID:
@@ -716,6 +740,7 @@ class Playlist(commands.GroupCog, group_name="playlist"):
         await self.error_handler(interaction, error)
 
 
+
 # View for confirming the deletion of a playlist
 class ConfirmDeleteView(discord.ui.View):
     def __init__(self, user_id, playlist_name, playlist_id):
@@ -1150,6 +1175,22 @@ class EditPlaylistNameModal(discord.ui.Modal, title="Edit Playlist Name"):
         await db.edit_playlist_name(self.playlist_id, new_name)
         await interaction.response.send_message(f"Playlist name updated to '{new_name}'. 🎶", ephemeral=True)
 
+
+class PlaylistSelectView(discord.ui.View):
+    def __init__(self, playlists, track):
+        super().__init__(timeout=60)
+        self.track = track
+
+        options = [discord.SelectOption(label=playlist['name'], value=playlist['name']) for playlist in playlists]
+        self.select = discord.ui.Select(placeholder="Choose a playlist", options=options)
+        self.select.callback = self.select_callback
+        self.add_item(self.select)
+
+    async def select_callback(self, interaction: discord.Interaction):
+        selected_playlist = self.select.values[0]
+        await db.add_song_to_playlist(interaction.user.id, selected_playlist, self.track.identifier, self.track.title, self.track.author, self.track.raw_data)
+        await interaction.response.send_message(f"Added to your playlist '{selected_playlist}'! 🎶", ephemeral=True)
+        self.stop()
 
 # Sets up the cog in the bot
 async def setup(bot):
