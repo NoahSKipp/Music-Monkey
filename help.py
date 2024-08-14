@@ -93,7 +93,7 @@ class HelpCog(commands.Cog):
 
     def get_playback_commands(self):
         return ("**Playback Commands:**\n"
-                "`/play [song|URL]` - Play or add a song to the queue.\n"
+                "`/play [song|URL] [source]` - Play or add a song to the queue.\n"
                 "`/pause` - Pause the current song.\n"
                 "`/resume` - Resume the paused music.\n"
                 "`/skip` - Skip the current track.\n"
@@ -130,7 +130,7 @@ class HelpCog(commands.Cog):
 
     def get_settings_commands(self):
         return ("**Settings and Configuration Commands:**\n"
-                "`/config` - Displays the bot configuration details.\n"
+                "`/botinfo` - Displays the bot configuration details.\n"
                 "`/dj add [command_name]` - Add a command to the DJ list.\n"
                 "`/dj remove [command_name]` - Remove a command from the DJ restricted list.\n"
                 "`/dj toggle` - Toggle DJ-only command restrictions.\n"

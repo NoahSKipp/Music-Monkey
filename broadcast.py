@@ -12,11 +12,13 @@ import database
 from permissions import can_use_updates_commands
 import logging
 
+
 class BroadcastCog(commands.GroupCog, group_name="updates"):
     def __init__(self, bot):
         self.bot = bot
         self.creator_ids = ['338735185900077066', '99624063655215104']
         self.logger = logging.getLogger(__name__)
+        self.logger.propagate = False  # Prevent propagation to root logger
         handler = logging.StreamHandler()
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         handler.setFormatter(formatter)
@@ -26,7 +28,11 @@ class BroadcastCog(commands.GroupCog, group_name="updates"):
     @commands.Cog.listener()
     async def on_message(self, message):
         if message.guild is None and str(message.author.id) in self.creator_ids:
-            await self.relay_message_to_servers(message.content)
+            if message.content.lower().startswith("broadcast:"):
+                broadcast_content = message.content[len("broadcast:"):].strip()
+                await self.relay_message_to_servers(broadcast_content)
+                await message.channel.send("Broadcast sent to all servers.")
+                self.logger.info("Broadcast message sent.")
 
     async def relay_message_to_servers(self, content):
         embed = discord.Embed(
