@@ -22,12 +22,14 @@ ALL_COMMANDS = [
     "profile", "monkey", "fact"
 ]
 
+
 async def command_autocomplete(interaction: Interaction, current: str):
     return [
         app_commands.Choice(name=cmd, value=cmd)
         for cmd in ALL_COMMANDS
         if current.lower() in cmd.lower()
     ]
+
 
 class RoleSelect(discord.ui.Select):
     def __init__(self, options):
@@ -44,25 +46,13 @@ class RoleSelect(discord.ui.Select):
         await interaction.response.send_message(f"The DJ role has been set to **{role_name}**.", ephemeral=True)
         self.view.stop()
 
+
 class SelectRoleView(discord.ui.View):
     def __init__(self, options, user_id):
         super().__init__()
         self.user_id = user_id
         self.add_item(RoleSelect(options))
 
-class AllRestrictedCommandsView(ui.View):
-    def __init__(self, restricted_commands):
-        super().__init__()
-        self.restricted_commands = restricted_commands
-
-    @ui.button(label="All DJ Commands", style=discord.ButtonStyle.primary, disabled=True)
-    async def show_all_restricted(self, interaction: Interaction, button: ui.Button):
-        embed = discord.Embed(
-            title="All DJ Commands",
-            description="\n".join(f"- {cmd}" for cmd in self.restricted_commands),
-            color=discord.Color.blue()
-        )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 class AdminCommands(commands.Cog):
     def __init__(self, bot):
@@ -75,10 +65,16 @@ class AdminCommands(commands.Cog):
                 ephemeral=True
             )
         else:
-            await interaction.response.send_message(
-                "An error occurred while processing the command.",
-                ephemeral=True
-            )
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    "An error occurred while processing the command.",
+                    ephemeral=True
+                )
+            else:
+                await interaction.followup.send(
+                    "An error occurred while processing the command.",
+                    ephemeral=True
+                )
 
     async def ensure_manage_roles_permission(self, interaction: Interaction):
         if not can_manage_roles(interaction.user):
@@ -87,8 +83,8 @@ class AdminCommands(commands.Cog):
         return True
 
     @discord.app_commands.checks.cooldown(1, 3)
-    @discord.app_commands.command(name='config', description='Displays configuration details')
-    async def config(self, interaction: Interaction):
+    @discord.app_commands.command(name='botinfo', description='Displays bot information')
+    async def botinfo(self, interaction: Interaction):
         if not await self.ensure_manage_roles_permission(interaction):
             return
 
@@ -103,62 +99,70 @@ class AdminCommands(commands.Cog):
         # Determine DJ role name
         if current_dj_role_id:
             current_dj_role = interaction.guild.get_role(current_dj_role_id)
-            dj_role_name = current_dj_role.name if current_dj_role else "Unknown Role"
+            dj_role_name = current_dj_role.name if current_dj_role else "None"
         else:
             dj_role_name = "None"
 
-        # Create embed
-        embed = discord.Embed(
-            title="Bot Config",
-            color=discord.Color.blue(),
-            timestamp=discord.utils.utcnow()
+        # Get the number of servers currently playing
+        playing_in_guilds = sum(1 for vc in self.bot.voice_clients if vc.playing)
+
+        # Get shard information
+        shard_id = interaction.guild.shard_id + 1  # Shard IDs are 0-indexed, add 1 for display
+        total_shards = self.bot.shard_count
+
+        # Bot stats block
+        bot_stats_block = (
+            "```yaml\n"
+            "[Bot Stats]\n"
+            f"Shards             : {shard_id}/{total_shards}\n"
+            f"Servers            : {len(self.bot.guilds)}\n"
+            f"Playing Music In   : {playing_in_guilds} servers\n"
+            f"Bot Latency        : {round(self.bot.latency * 1000)} ms\n"
+            "```"
         )
 
-        # DJ Commands
-        if restricted_list:
-            display_commands = restricted_list[:3]
-            remaining_count = len(restricted_list) - 3
-            if remaining_count > 0:
-                display_commands.append("...")
-            embed.add_field(name="DJ Commands", value="\n".join(f"- {cmd}" for cmd in display_commands), inline=True)
-        else:
-            embed.add_field(name="DJ Commands", value="No DJ commands.", inline=True)
+        # DJ-related block
+        dj_block = (
+            "```yaml\n"
+            "[DJ Information]\n"
+            f"Mode               : {'Enabled' if dj_mode_status else 'Disabled'}\n"
+            f"Role               : {dj_role_name}\n"
+            f"Restricted Commands : {', '.join(restricted_list) if restricted_list else 'None'}\n"
+            "```"
+        )
 
-        # DJ Mode and DJ Role
-        embed.add_field(name="DJ Mode", value="Enabled" if dj_mode_status else "Disabled", inline=True)
-        embed.add_field(name="DJ Role", value=dj_role_name, inline=True)
-
-        # Updates Status and Updates Channel
+        # Updates-related block
         updates_status = await get_updates_status(interaction.guild.id)
         updates_status_text = "Enabled" if updates_status == 1 else "Disabled"
         updates_channel_id = await get_updates_channel(interaction.guild.id)
         if updates_channel_id:
             updates_channel = interaction.guild.get_channel(updates_channel_id)
-            channel_name = updates_channel.name if updates_channel else "Unknown Channel"
+            channel_name = updates_channel.name if updates_channel else "None"
         else:
-            channel_name = "Unknown Channel"
+            channel_name = "None"
 
-        embed.add_field(name="Updates Status", value=updates_status_text, inline=True)
-        embed.add_field(name="Updates Channel", value=f"#{channel_name}", inline=True)
+        updates_block = (
+            "```yaml\n"
+            "[Updates Information]\n"
+            f"Updates Status    : {updates_status_text}\n"
+            f"Updates Channel   : #{channel_name}\n"
+            "```"
+        )
 
-        # Add an invisible field to force the layout
-        embed.add_field(name="\u200b", value="\u200b", inline=True)
+        # Combine all blocks into one message
+        response = f"{bot_stats_block}\n{dj_block}\n{updates_block}"
 
-        # Bot Latency, Bot Uptime, Bot Region
-        embed.add_field(name="Bot Latency", value=f"{round(self.bot.latency * 1000)} ms", inline=True)
-        bot_uptime = datetime.utcnow() - self.bot.uptime
-        embed.add_field(name="Bot Uptime", value=str(bot_uptime).split('.')[0], inline=True)
-        embed.add_field(name="Bot Region", value="US East", inline=True)
+        # Create an embed to hold the response
+        embed = discord.Embed(
+            title="Bot Information",
+            description=response,
+            color=discord.Color.blue()
+        )
 
-        # View for restricted commands
-        view = AllRestrictedCommandsView(restricted_list)
-        if len(restricted_list) > 3:
-            view.children[0].disabled = False
+        await interaction.followup.send(embed=embed)
 
-        await interaction.followup.send(embed=embed, view=view)
-
-    @config.error
-    async def config_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+    @botinfo.error
+    async def botinfo_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         await self.error_handler(interaction, error)
 
     async def error_handler(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
@@ -168,10 +172,17 @@ class AdminCommands(commands.Cog):
                 ephemeral=True
             )
         else:
-            await interaction.response.send_message(
-                "An error occurred while processing the command.",
-                ephemeral=True
-            )
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    "An error occurred while processing the command.",
+                    ephemeral=True
+                )
+            else:
+                await interaction.followup.send(
+                    "An error occurred while processing the command.",
+                    ephemeral=True
+                )
+
 
 class DJCommands(commands.GroupCog, group_name="dj"):
     def __init__(self, bot):
@@ -312,17 +323,6 @@ class DJCommands(commands.GroupCog, group_name="dj"):
         else:
             await interaction.followup.send("No DJ role selected.")
 
-    async def error_handler(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
-        if isinstance(error, app_commands.CommandOnCooldown):
-            await interaction.response.send_message(
-                f"Command is on cooldown. Try again in {error.retry_after:.2f} seconds.",
-                ephemeral=True
-            )
-        else:
-            await interaction.response.send_message(
-                "An error occurred while processing the command.",
-                ephemeral=True
-            )
 
 async def setup(bot):
     await bot.add_cog(AdminCommands(bot))
