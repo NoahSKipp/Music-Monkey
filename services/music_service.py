@@ -9,7 +9,7 @@ from utils.formatters import format_duration
 from utils.logging import get_logger
 from database import database as db
 from utils.buttons import QueuePaginationView, FilterSelectView, MusicButtons
-from utils.voting_checks import has_voted_sources
+from utils.voting_checks import has_voted_sources, has_voted
 
 logger = get_logger(__name__)
 
@@ -40,6 +40,15 @@ class MusicService(commands.Cog):
         except Exception as e:
             logger.error(f"Error in autocomplete: {e}")
             return []
+
+    async def filters_autocomplete(self, interaction: discord.Interaction, current: str):
+        options = [
+            "Bass Boost", "Nightcore", "Vaporwave", "Karaoke", "Tremolo", "Distortion"
+        ]
+        return [
+            app_commands.Choice(name=option, value=option.lower().replace(" ", "_"))
+            for option in options if current.lower() in option.lower()
+        ][:25]
 
     async def play(self, interaction: discord.Interaction, query: str, source: str = 'Deezer'):
         try:
@@ -463,32 +472,37 @@ class MusicService(commands.Cog):
         except Exception as e:
             logger.error(f"Error processing the shuffle command: {e}")
 
-    async def autoplay(self, interaction: discord.Interaction, mode: str):
-        await interaction.response.defer(ephemeral=True)
+    async def autoplay(self, interaction: discord.Interaction):
         try:
+            await interaction.response.defer(ephemeral=True)
+
+            # Check for restrictions first
             if not await restriction_check(interaction):
                 return
 
+            # Ensure the user is in the same voice channel as the bot
             if not await self.user_in_voice(interaction):
                 embed = create_error_embed("You must be in the same voice channel as me to use this command.")
                 await interaction.followup.send(embed=embed, ephemeral=True)
                 return
 
+            # Retrieve the player for the current guild
             player = interaction.guild.voice_client
             if not player:
                 embed = create_error_embed("Not connected to a voice channel.")
                 await interaction.followup.send(embed=embed, ephemeral=True)
                 return
 
-            # Apply the autoplay mode based on user choice
-            if mode == 'enabled':
-                player.autoplay = wavelink.AutoPlayMode.enabled
-                embed = create_basic_embed("", "AutoPlay has been enabled.")
-                await interaction.followup.send(embed=embed, ephemeral=True)
-            elif mode == 'disabled':
+            # Toggle the autoplay mode
+            if player.autoplay == wavelink.AutoPlayMode.enabled:
                 player.autoplay = wavelink.AutoPlayMode.disabled
                 embed = create_basic_embed("", "AutoPlay has been disabled.")
-                await interaction.followup.send(embed=embed, ephemeral=True)
+            else:
+                player.autoplay = wavelink.AutoPlayMode.enabled
+                embed = create_basic_embed("", "AutoPlay has been enabled.")
+
+            await interaction.followup.send(embed=embed, ephemeral=True)
+
         except Exception as e:
             logger.error(f"Error processing the autoplay command: {e}")
 
@@ -564,35 +578,87 @@ class MusicService(commands.Cog):
         except Exception as e:
             logger.error(f"Error processing the jump command: {e}")
 
-    async def filters(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
+    async def filters(self, interaction: discord.Interaction, filter: str):
         try:
+            await interaction.response.defer(ephemeral=True)
+
+            # Retrieve the player object of the bot in the current guild's voice channel
             player = interaction.guild.voice_client
             if not player:
                 embed = create_error_embed("Not connected to a voice channel.")
                 await interaction.followup.send(embed=embed, ephemeral=True)
                 return
 
-            options = [
-                discord.SelectOption(label='Bass Boost', description='Enhances the bass frequencies',
-                                     value='bass_boost'),
-                discord.SelectOption(label='Nightcore', description='Increases the pitch and speed', value='nightcore'),
-                discord.SelectOption(label='Vaporwave', description='Adds a slow rotation and slight pitch shift',
-                                     value='vaporwave'),
-                discord.SelectOption(label='Karaoke', description='Reduces the lead vocals for a karaoke effect',
-                                     value='karaoke'),
-                discord.SelectOption(label='Tremolo',
-                                     description='Adds a tremolo effect with periodic volume oscillation',
-                                     value='tremolo'),
-                discord.SelectOption(label='Distortion', description='Adds a distortion effect for a grittier sound',
-                                     value='distortion')
-            ]
+            # Apply the filter based on the selected option
+            if filter == 'bass_boost':
+                await self.apply_bass_boost(player)
+            elif filter == 'nightcore':
+                await self.apply_nightcore(player)
+            elif filter == 'vaporwave':
+                await self.apply_vaporwave(player)
+            elif filter == 'karaoke':
+                await self.apply_karaoke(player)
+            elif filter == 'tremolo':
+                await self.apply_tremolo(player)
+            elif filter == 'distortion':
+                await self.apply_distortion(player)
+            else:
+                embed = create_error_embed("Invalid filter selected.")
+                await interaction.followup.send(embed=embed, ephemeral=True)
+                return
 
-            view = FilterSelectView(options, interaction.user.id, player)
-            embed = create_basic_embed("", "Please select a filter to apply:")
-            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+            embed = create_basic_embed("", f"The {filter.replace('_', ' ').title()} filter has been applied.")
+            await interaction.followup.send(embed=embed, ephemeral=True)
+
         except Exception as e:
             logger.error(f"Error processing the filters command: {e}")
+            embed = create_error_embed("An error occurred while trying to apply the filter.")
+            await interaction.followup.send(embed=embed, ephemeral=True)
+
+    # Apply the bass boost effect
+    async def apply_bass_boost(self, player):
+        filters = wavelink.Filters()
+        filters.equalizer.set(bands=[
+            {"band": 0, "gain": 0.25},
+            {"band": 1, "gain": 0.25},
+            {"band": 2, "gain": 0.25},
+            {"band": 3, "gain": 0.2},
+            {"band": 4, "gain": 0.15}
+        ])
+        await player.set_filters(filters)
+
+    # Apply the nightcore effect
+    async def apply_nightcore(self, player):
+        filters = wavelink.Filters()
+        filters.timescale.set(pitch=1.25, speed=1.25)
+        await player.set_filters(filters)
+
+    # Apply the vaporwave effect
+    async def apply_vaporwave(self, player):
+        filters = wavelink.Filters()
+        filters.timescale.set(pitch=0.8, speed=0.85)
+        filters.rotation.set(rotation_hz=0.1)
+        await player.set_filters(filters)
+
+    # Apply the karaoke effect
+    async def apply_karaoke(self, player):
+        filters = wavelink.Filters()
+        filters.karaoke.set(level=1.0, mono_level=1.0, filter_band=220.0, filter_width=100.0)
+        await player.set_filters(filters)
+
+    # Apply the tremolo effect
+    async def apply_tremolo(self, player):
+        filters = wavelink.Filters()
+        filters.tremolo.set(frequency=4.0, depth=0.75)
+        await player.set_filters(filters)
+
+    # Apply the distortion effect
+    async def apply_distortion(self, player):
+        filters = wavelink.Filters()
+        filters.distortion.set(sin_offset=0.5, sin_scale=0.5, cos_offset=0.5, cos_scale=0.5, tan_offset=0.5,
+                               tan_scale=0.5,
+                               offset=0.5, scale=0.5)
+        await player.set_filters(filters)
 
     async def resetfilter(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
@@ -611,6 +677,8 @@ class MusicService(commands.Cog):
             await interaction.followup.send(embed=embed, ephemeral=True)
         except Exception as e:
             logger.error(f"Error processing the resetfilter command: {e}")
+            embed = create_error_embed("An error occurred while trying to reset the filters.")
+            await interaction.followup.send(embed=embed, ephemeral=True)
 
     async def wondertrade(self, interaction: discord.Interaction, query: str, note: str):
         await interaction.response.defer(ephemeral=True)
