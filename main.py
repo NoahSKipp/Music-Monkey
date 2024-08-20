@@ -24,13 +24,15 @@ class MusicMonkey(commands.AutoShardedBot):
 
     async def setup_hook(self):
         # Setup top.gg client and webhook
-
+        self.dblclient = topgg.DBLClient(self, config.TOPGG_TOKEN, autopost=True)
+        self.webhook_manager = topgg.WebhookManager(self).dbl_webhook(route="/dblwebhook", auth_key=config.AUTHORIZATION_KEY)
 
         # Lavalink node setup
         nodes = [
-
-            wavelink.Node(identifier="2ndMonkey", uri=f'http://{config.LAVALINK_HOST}:{config.LAVALINK_PORT}',
-                          password=config.LAVALINK_PASSWORD)
+            wavelink.Node(identifier="1stMonkey", uri=f'http://{config.LAVALINK_HOST}:{config.LAVALINK_PORT}',
+                          password=config.LAVALINK_PASSWORD),
+            wavelink.Node(identifier="2ndMonkey", uri=f'http://{config.LAVALINK_HOST2}:{config.LAVALINK_PORT2}',
+                          password=config.LAVALINK_PASSWORD2)
         ]
         await wavelink.Pool.connect(nodes=nodes, client=self)
 
@@ -56,6 +58,7 @@ class MusicMonkey(commands.AutoShardedBot):
     async def on_ready(self):
         await self.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name='/play | /help'))
         self.logger.info(f'Logged in as {self.user} and ready!')
+        await self.webhook_manager.run(config.PORT)
 
 
 async def main():
