@@ -1,7 +1,3 @@
 __pycache__
 .idea
 tokens.env
-lookup.py
-invite.py
-permissions.py
-

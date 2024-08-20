@@ -8,7 +8,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from services.broadcast_service import BroadcastService
-from permissions import can_use_updates_commands
+from utils.interaction_checks import can_manage_roles
 
 
 class BroadcastCog(commands.GroupCog, group_name="updates"):
@@ -35,17 +35,13 @@ class BroadcastCog(commands.GroupCog, group_name="updates"):
         app_commands.Choice(name="disable", value="disable"),
     ])
     async def updates(self, interaction: discord.Interaction, choice: str):
-        if can_use_updates_commands(interaction.user):
+        if await can_manage_roles(interaction):
             await self.service.toggle_updates(interaction, choice)
-        else:
-            await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
 
     @app_commands.command(name="set", description="Set the current channel as the updates channel")
     async def updates_set(self, interaction: discord.Interaction):
-        if can_use_updates_commands(interaction.user):
+        if await can_manage_roles(interaction):
             await self.service.set_updates_channel(interaction)
-        else:
-            await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
 
 
 async def setup(bot):
