@@ -23,14 +23,10 @@ class MusicMonkey(commands.AutoShardedBot):
         self.logger = get_logger(__name__)  # Initialize logger
 
     async def setup_hook(self):
-        # Setup top.gg client and webhook
-
-
         # Lavalink node setup
         nodes = [
             wavelink.Node(identifier="1stMonkey", uri=f'http://{config.LAVALINK_HOST}:{config.LAVALINK_PORT}',
                           password=config.LAVALINK_PASSWORD),
-
         ]
         await wavelink.Pool.connect(nodes=nodes, client=self)
 
@@ -57,6 +53,14 @@ class MusicMonkey(commands.AutoShardedBot):
         await self.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name='/play | /help'))
         self.logger.info(f'Logged in as {self.user} and ready!')
 
+    async def on_message(self, message: discord.Message):
+        if message.author == self.user:
+            return
+
+        # Check if the message is a DM
+        if isinstance(message.channel, discord.DMChannel):
+            # Check for sync commands in messages
+            await sync_commands(self, message)
 
 
 async def main():
