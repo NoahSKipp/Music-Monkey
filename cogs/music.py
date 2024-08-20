@@ -46,7 +46,7 @@ class MusicCog(commands.Cog):
         app_commands.Choice(name='Deezer', value='Deezer')
     ])
     @app_commands.autocomplete(query=MusicService.youtube_autocomplete)
-    async def play(self, interaction: Interaction, query: str, source: str = 'YouTube'):
+    async def play(self, interaction: Interaction, query: str, source: str = 'Deezer'):
         await interaction.response.defer(ephemeral=True)
         await self.service.play_song(interaction, query, source)
 

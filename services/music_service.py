@@ -45,19 +45,37 @@ class MusicService(commands.Cog):
         try:
             await interaction.response.defer(ephemeral=False)
 
-            # Check if the bot is in a voice channel
-            if not interaction.guild.voice_client:
-                if not interaction.user.voice or not interaction.user.voice.channel:
-                    embed = create_error_embed("You must be in a voice channel to use this command.")
-                    await interaction.followup.send(embed=embed, ephemeral=True)
-                    return
+            # Check for restrictions first
+            if not await restriction_check(interaction):
+                return
+
+            # Check if the bot is already in a voice channel
+            player = interaction.guild.voice_client
+            channel = interaction.user.voice.channel if interaction.user.voice else None
+
+            if not channel:
+                embed = create_error_embed("You must be in a voice channel to use this command.")
+                await interaction.followup.send(embed=embed, ephemeral=True)
+                return
+
+            if not player:
+                # Join the user's voice channel immediately
+                player = await channel.connect(cls=wavelink.Player)
+                player.guild_id = interaction.guild_id
+                player.interaction_channel_id = interaction.channel_id
             else:
                 if not await self.user_in_voice(interaction):
                     embed = create_error_embed("You must be in the same voice channel as the bot to use this command.")
                     await interaction.followup.send(embed=embed, ephemeral=True)
                     return
 
+            # After joining the voice channel, proceed with other checks
+            if not await has_voted(interaction.user, interaction.guild, self.bot, interaction):
+                return
+
+            # Proceed to play the song
             await self.play_song(interaction, query, source)
+
         except discord.errors.NotFound:
             logger.error("Interaction not found or expired.")
         except Exception as e:
@@ -92,20 +110,24 @@ class MusicService(commands.Cog):
                 await interaction.followup.send(embed=embed, ephemeral=True)
                 return
 
-            track = results[0]
+            player = interaction.guild.voice_client
 
-            # Join the user's voice channel if not already connected
-            channel = interaction.user.voice.channel if interaction.user and interaction.user.voice else None
-            if not channel:
-                embed = create_error_embed("You must be in a voice channel to play music.")
+            # Ensure that the player is properly initialized and connected
+            if player is None:
+                channel = interaction.user.voice.channel if interaction.user.voice else None
+                if channel:
+                    player = await channel.connect(cls=wavelink.Player)
+                    player.guild_id = interaction.guild_id
+                    player.interaction_channel_id = interaction.channel_id
+                else:
+                    embed = create_error_embed("You must be in a voice channel to play music.")
+                    await interaction.followup.send(embed=embed, ephemeral=True)
+                    return
+
+            if player is None:
+                embed = create_error_embed("Failed to connect to the voice channel.")
                 await interaction.followup.send(embed=embed, ephemeral=True)
                 return
-
-            player = interaction.guild.voice_client
-            if not player:
-                player = await channel.connect(cls=wavelink.Player)
-                player.guild_id = interaction.guild_id
-                player.interaction_channel_id = interaction.channel_id
 
             # If the search result is a playlist, add all tracks to the queue
             if isinstance(results, wavelink.Playlist):

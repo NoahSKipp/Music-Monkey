@@ -128,7 +128,7 @@ async def has_voted_sources(user: discord.User, guild: discord.Guild, bot, inter
             embed = create_basic_embed(
                 title="Unlock This Feature!",
                 description=(
-                    "Playing tracks from sources other than YouTube is a special feature just for our awesome voters.\n "
+                    "Playing tracks from sources other than Deezer is a special feature just for our awesome voters.\n "
                     "Please take a moment to [vote for Music Monkey on Top.gg](https://top.gg/bot/1228071177239531620/vote) to unlock this perk.\n "
                     "Server Boosters and active members of [our community](https://discord.gg/6WqKtrXjhn) get to skip this step and enjoy all the tunes! <a:tadaMM:1258473486003732642>"
                 )
