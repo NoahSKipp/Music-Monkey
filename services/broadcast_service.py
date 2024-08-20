@@ -18,8 +18,8 @@ class BroadcastService:
         self.creator_ids = ['338735185900077066', '99624063655215104']  # Ensure these IDs are correct
 
     async def handle_creator_message(self, message: discord.Message):
-        # Handle direct messages from creators, initiating a broadcast if the message starts with "broadcast:"
-        if message.guild is None and str(message.author.id) in self.creator_ids:
+        # Check if the message was sent in a DM and is from one of the creators
+        if isinstance(message.channel, discord.DMChannel) and str(message.author.id) in self.creator_ids:
             if message.content.lower().startswith("broadcast:"):
                 broadcast_content = message.content[len("broadcast:"):].strip()
                 await self.relay_message_to_servers(broadcast_content)
@@ -30,8 +30,10 @@ class BroadcastService:
         # Relay a broadcast message to all appropriate channels in each guild
         embed = create_info_embed(content)
         view = discord.ui.View()
-        support_button = discord.ui.Button(label="Support", url="https://discord.gg/6WqKtrXjhn", style=discord.ButtonStyle.link)
-        website_button = discord.ui.Button(label="Website", url="https://getmusicmonkey.com", style=discord.ButtonStyle.link)
+        support_button = discord.ui.Button(label="Support", url="https://discord.gg/6WqKtrXjhn",
+                                           style=discord.ButtonStyle.link)
+        website_button = discord.ui.Button(label="Website", url="https://getmusicmonkey.com",
+                                           style=discord.ButtonStyle.link)
         view.add_item(support_button)
         view.add_item(website_button)
 
@@ -63,7 +65,8 @@ class BroadcastService:
                 if isinstance(result, Exception):
                     self.logger.error(f"Failed to send message to {guild.name}: {result}")
 
-    async def send_embed_to_channel(self, channel: discord.TextChannel, embed: discord.Embed, view: discord.ui.View, guild_name: str):
+    async def send_embed_to_channel(self, channel: discord.TextChannel, embed: discord.Embed, view: discord.ui.View,
+                                    guild_name: str):
         # Send an embed message to the specified channel, handling potential errors and rate limits
         try:
             await channel.send(embed=embed, view=view)
@@ -90,7 +93,8 @@ class BroadcastService:
     async def set_updates_channel(self, interaction: discord.Interaction):
         # Set the current channel as the updates channel for the guild
         await database.set_updates_channel(interaction.guild_id, interaction.channel_id)
-        self.logger.info(f"Updates channel set to {interaction.channel.name} for guild {interaction.guild.name} by user {interaction.user}.")
+        self.logger.info(
+            f"Updates channel set to {interaction.channel.name} for guild {interaction.guild.name} by user {interaction.user}.")
         await interaction.response.send_message(
             embed=create_basic_embed("", "This channel has been set as the updates channel."), ephemeral=True
         )
