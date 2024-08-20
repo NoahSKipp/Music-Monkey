@@ -41,7 +41,7 @@ class MusicService(commands.Cog):
             logger.error(f"Error in autocomplete: {e}")
             return []
 
-    async def play(self, interaction: discord.Interaction, query: str, source: str = 'YouTube'):
+    async def play(self, interaction: discord.Interaction, query: str, source: str = 'Deezer'):
         try:
             await interaction.response.defer(ephemeral=False)
 
@@ -94,9 +94,9 @@ class MusicService(commands.Cog):
                 elif source == 'Deezer':
                     search_query = query
                     source_prefix = 'dzsearch'
-                else:  # Default to YouTube
+                else:  # Default to Deezer
                     search_query = query
-                    source_prefix = 'ytsearch'
+                    source_prefix = 'dzsearch'
 
                 # If source_prefix is set, apply the search prefix
                 if source_prefix:
@@ -272,10 +272,14 @@ class MusicService(commands.Cog):
         try:
             # Gets the player object of the bot in the current guild's voice channel
             player = interaction.guild.voice_client
+
             # If there's no player, no player queue, or an empty player queue, displays a message
             if not player or not player.queue or player.queue.is_empty:
                 embed = create_error_embed("The queue is empty.")
-                await interaction.response.send_message(embed=embed)
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(embed=embed)
+                else:
+                    await interaction.followup.send(embed=embed)
                 return
 
             # Setting the parameters for the queue embed
@@ -295,7 +299,10 @@ class MusicService(commands.Cog):
             if edit:
                 await interaction.message.edit(embed=embed, view=view)
             else:
-                await interaction.response.send_message(embed=embed, view=view, ephemeral=False)
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(embed=embed, view=view, ephemeral=False)
+                else:
+                    await interaction.followup.send(embed=embed, view=view, ephemeral=False)
         except Exception as e:
             logger.error(f"Error displaying the queue: {e}")
 
