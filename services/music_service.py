@@ -8,7 +8,7 @@ from utils.embeds import create_basic_embed, create_error_embed
 from utils.formatters import format_duration
 from utils.logging import get_logger
 from database import database as db
-from utils.buttons import QueuePaginationView, FilterSelectView, MusicButtons
+from utils.buttons import QueuePaginationView, MusicButtons
 from utils.voting_checks import has_voted_sources, has_voted
 
 logger = get_logger(__name__)
