@@ -139,7 +139,7 @@ async def get_restricted_commands(guild_id: int):
             return None
 
 
-async def add_restricted_command(guild_id: int, command_name: str):
+async def add_restricted_command(guild_id: int, command: str):
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
         async with conn.cursor() as cur:
             await cur.execute('SELECT restricted_commands FROM guilds WHERE guild_id=%s', (guild_id,))
@@ -148,21 +148,21 @@ async def add_restricted_command(guild_id: int, command_name: str):
                 commands = result[0]
                 if commands:
                     commands = commands.split(',')
-                    if command_name not in commands:
-                        commands.append(command_name)
+                    if command not in commands:
+                        commands.append(command)
                         commands = ','.join(commands)
                     else:
                         return  # Command is already restricted
                 else:
-                    commands = command_name
+                    commands = command
                 await cur.execute('UPDATE guilds SET restricted_commands=%s WHERE guild_id=%s', (commands, guild_id))
             else:
                 await cur.execute('INSERT INTO guilds (guild_id, restricted_commands) VALUES (%s, %s)',
-                                  (guild_id, command_name))
+                                  (guild_id, command))
             await conn.commit()
 
 
-async def remove_restricted_command(guild_id: int, command_name: str):
+async def remove_restricted_command(guild_id: int, command: str):
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
         async with conn.cursor() as cur:
             await cur.execute('SELECT restricted_commands FROM guilds WHERE guild_id=%s', (guild_id,))
@@ -171,8 +171,8 @@ async def remove_restricted_command(guild_id: int, command_name: str):
                 commands = result[0]
                 if commands:
                     commands = commands.split(',')
-                    if command_name in commands:
-                        commands.remove(command_name)
+                    if command in commands:
+                        commands.remove(command)
                         commands = ','.join(commands) if commands else None
                         await cur.execute('UPDATE guilds SET restricted_commands=%s WHERE guild_id=%s',
                                           (commands, guild_id))

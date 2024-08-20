@@ -3,3 +3,6 @@ wavelink==3.3.0
 aiomysql==0.2.0
 google-generativeai==0.5.4
 python-dotenv==1.0.1
+aiohttp
+asyncio
+

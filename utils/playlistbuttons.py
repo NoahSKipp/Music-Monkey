@@ -1,14 +1,16 @@
 # ========================================= #
 # Author: Noah S. Kipp                      #
 # Collaborator: Samuel Jaden Garcia Munoz   #
-# Created on: 14.08..2024                   #
+# Created on: 15.08.2024                    #
 # ========================================= #
 
 import discord
-import database as db
-import logging
-import json
-import wavelink
+from database import database as db
+from utils.embeds import create_basic_embed, create_error_embed
+from utils.logging import get_logger
+
+# Initialize the logger from logging.py
+logger = get_logger(__name__)
 
 
 # PlaylistEditSelectView for selecting a playlist to edit
@@ -27,7 +29,7 @@ class PlaylistEditSelectView(discord.ui.View):
         self.select.callback = self.select_callback
         self.add_item(self.select)
 
-    async def select_callback(self, interaction):
+    async def select_callback(self, interaction: discord.Interaction):
         selected_playlist_id = int(self.select.values[0])
         selected_playlist = next(
             (playlist for playlist in self.playlists if playlist['playlist_id'] == selected_playlist_id), None)
@@ -36,6 +38,7 @@ class PlaylistEditSelectView(discord.ui.View):
             embed, view = await create_edit_interface(interaction, selected_playlist)
             await interaction.response.edit_message(embed=embed, view=view)
         self.stop()
+
 
 # PlaylistPlaySelectView for selecting a playlist to play
 class PlaylistPlaySelectView(discord.ui.View):
@@ -71,12 +74,12 @@ class PlaylistPlaySelectView(discord.ui.View):
             self.add_item(select)
 
         await self.interaction.followup.send(
-            "Multiple playlists found. Please select one:",
+            embed=create_basic_embed("", "Multiple playlists found. Please select one:"),
             view=self if options else None,
             ephemeral=True if options else False
         )
 
-    async def select_callback(self, interaction):
+    async def select_callback(self, interaction: discord.Interaction):
         await interaction.response.defer()  # Defer the interaction to avoid expiration
 
         selected_index = int(interaction.data['values'][0])
@@ -84,15 +87,17 @@ class PlaylistPlaySelectView(discord.ui.View):
         if selected_playlist:
             contents = await db.get_playlist_contents(selected_playlist['playlist_id'])
             if not contents:
-                await interaction.followup.send_message(f"Oops! The playlist '{selected_playlist['name']}' is empty. 📂",
-                                                        ephemeral=True)
+                await interaction.followup.send(
+                    embed=create_error_embed(f"Oops! The playlist '{selected_playlist['name']}' is empty. 📂"),
+                    ephemeral=True)
                 return
             player = interaction.guild.voice_client
             if not player:
                 channel = interaction.user.voice.channel if interaction.user and interaction.user.voice else None
                 if not channel:
-                    await interaction.followup.send_message("Please join a voice channel to play music. 🎶",
-                                                            ephemeral=True)
+                    await interaction.followup.send(
+                        embed=create_error_embed("Please join a voice channel to play music. 🎶"),
+                        ephemeral=True)
                     return
                 player = await channel.connect(cls=wavelink.Player)
                 player.guild_id = interaction.guild_id
@@ -102,13 +107,15 @@ class PlaylistPlaySelectView(discord.ui.View):
             if playlist_cog:
                 await playlist_cog.play_songs(interaction, contents, player)
                 await interaction.followup.send(
-                    f"Playing all songs from playlist '{selected_playlist['name']}'! 🎶",
+                    embed=create_basic_embed("", f"Playing all songs from playlist '{selected_playlist['name']}'! 🎶"),
                     ephemeral=False)
             else:
                 await interaction.followup.send(
-                    "Whoops! I can't seem to find my playlist controls. Please try again later. 🎧",
+                    embed=create_error_embed(
+                        "Whoops! I can't seem to find my playlist controls. Please try again later. 🎧"),
                     ephemeral=True)
         self.stop()
+
 
 # ConfirmDeleteView for confirming playlist deletion
 class ConfirmDeleteView(discord.ui.View):
@@ -122,16 +129,21 @@ class ConfirmDeleteView(discord.ui.View):
     async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
 
+        # Delete the playlist
         result = await db.delete_playlist(self.user_id, self.playlist_name, self.playlist_id)
-        message = await interaction.original_response()
-        await message.edit(content=result, view=None)
+
+        # Show feedback in an embed and remove the buttons
+        feedback_embed = create_basic_embed("", result)
+        await interaction.edit_original_response(embed=feedback_embed, view=None)
 
     @discord.ui.button(label="No", style=discord.ButtonStyle.secondary)
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
 
-        message = await interaction.original_response()
-        await message.edit(content="Playlist deletion cancelled. 🎶", view=None)
+        # Show feedback in an embed and remove the buttons
+        feedback_embed = create_basic_embed("", "Playlist deletion cancelled. 🎶")
+        await interaction.edit_original_response(embed=feedback_embed, view=None)
+
 
 # PlaylistPaginator for navigating through playlist contents
 class PlaylistPaginator(discord.ui.View):
@@ -167,17 +179,18 @@ class PlaylistPaginator(discord.ui.View):
             try:
                 await interaction.response.edit_message(embed=embed, view=self)
                 if message:
-                    await interaction.followup.send(message, ephemeral=True)
+                    await interaction.followup.send(embed=create_basic_embed("", message), ephemeral=True)
             except discord.errors.InteractionResponded:
                 pass
             except discord.errors.NotFound:
                 await interaction.channel.send(embed=embed)
                 if message:
-                    await interaction.channel.send(message)
+                    await interaction.channel.send(embed=create_basic_embed("", message))
         else:
-            await interaction.response.edit_message(content="No more pages available. 🎶", view=self)
+            await interaction.response.edit_message(embed=create_basic_embed("", "No more pages available. 🎶"),
+                                                    view=self)
             if message:
-                await interaction.followup.send(message, ephemeral=True)
+                await interaction.followup.send(embed=create_basic_embed("", message), ephemeral=True)
 
     def update_buttons(self):
         self.first_button.disabled = self.current_page == 0
@@ -206,6 +219,7 @@ class PlaylistPaginator(discord.ui.View):
         await interaction.response.defer()
         self.current_page = self.total_pages - 1
         await self.update(interaction)
+
 
 # Paginator for navigating through embeds
 class Paginator(discord.ui.View):
@@ -243,17 +257,17 @@ class Paginator(discord.ui.View):
             try:
                 await interaction.response.edit_message(embed=embed, view=self)
                 if message:
-                    await interaction.followup.send(message, ephemeral=True)
+                    await interaction.followup.send(embed=create_basic_embed("", message), ephemeral=True)
             except discord.errors.InteractionResponded:
                 pass
             except discord.errors.NotFound:
                 await interaction.channel.send(embed=embed)
                 if message:
-                    await interaction.channel.send(message)
+                    await interaction.channel.send(embed=create_basic_embed("", message))
         else:
-            await interaction.response.edit_message(content="No more invites. 🎶", view=self)
+            await interaction.response.edit_message(embed=create_basic_embed("", "No more invites. 🎶"), view=self)
             if message:
-                await interaction.followup.send(message, ephemeral=True)
+                await interaction.followup.send(embed=create_basic_embed("", message), ephemeral=True)
 
     def update_buttons(self):
         self.prev_button.disabled = self.current_page == 0
@@ -292,6 +306,7 @@ class Paginator(discord.ui.View):
             self.add_item(
                 discord.ui.Button(label="No more invites", style=discord.ButtonStyle.secondary, disabled=True))
         self.update_buttons()
+
 
 # PlaylistSelection for selecting a playlist from a list
 class PlaylistSelection(discord.ui.View):
@@ -352,27 +367,28 @@ class PlaylistSelection(discord.ui.View):
                     embed.add_field(name=song['song_name'], value=f"Artist: {song['artist']}", inline=False)
                 await interaction.followup.send_message(embed=embed, ephemeral=True)
             else:
-                await interaction.followup.send_message("Oops! You do not have permission to view this playlist. 🎶",
-                                                        ephemeral=True)
+                await interaction.followup.send_message(
+                    embed=create_error_embed("Oops! You do not have permission to view this playlist. 🎶"),
+                    ephemeral=True)
         else:
-            await interaction.followup.send_message("Please select a playlist first. 🎶", ephemeral=True)
+            await interaction.followup.send_message(embed=create_error_embed("Please select a playlist first. 🎶"),
+                                                    ephemeral=True)
 
     async def create_embed(self):
         if not self.selected_playlist:
-            return discord.Embed(title="No Playlists", description="No playlists available to display.",
-                                 color=discord.Color.dark_red())
+            return create_basic_embed("No Playlists", "No playlists available to display.")
 
         creator = self.bot.get_user(self.selected_playlist['user_id'])
         if not creator:
             creator = await self.bot.fetch_user(self.selected_playlist['user_id'])
-        embed = discord.Embed(title=self.selected_playlist['name'], description=f"Creator: {creator.name}",
-                              color=discord.Color.dark_red())
+        embed = create_basic_embed(self.selected_playlist['name'], f"Creator: {creator.name}")
         embed.add_field(name="Privacy", value="Public" if self.selected_playlist['privacy'] == 1 else "Private")
         if self.selected_playlist['privacy'] == 1:  # Public playlist
             contents = await db.get_playlist_contents(self.selected_playlist['playlist_id'])
             embed.add_field(name="Song Count", value=str(len(contents)))
 
         return embed
+
 
 # PlaylistSelectView for selecting a playlist to add a song to
 class PlaylistSelectView(discord.ui.View):
@@ -387,9 +403,12 @@ class PlaylistSelectView(discord.ui.View):
 
     async def select_callback(self, interaction: discord.Interaction):
         selected_playlist = self.select.values[0]
-        await db.add_song_to_playlist(interaction.user.id, selected_playlist, self.track.identifier, self.track.title, self.track.author, self.track.raw_data)
-        await interaction.response.send_message(f"Added to your playlist '{selected_playlist}'! 🎶", ephemeral=True)
+        await db.add_song_to_playlist(interaction.user.id, selected_playlist, self.track.identifier, self.track.title,
+                                      self.track.author, self.track.raw_data)
+        await interaction.response.send_message(
+            embed=create_basic_embed("", f"Added to your playlist '{selected_playlist}'! 🎶"), ephemeral=True)
         self.stop()
+
 
 # Create playlist selection embeds and view
 async def create_playlist_selection_embeds(playlists, bot):
@@ -401,8 +420,7 @@ async def create_playlist_selection_embeds(playlists, bot):
         creator = bot.get_user(playlist['user_id'])
         if not creator:
             creator = await bot.fetch_user(playlist['user_id'])
-        embed = discord.Embed(title=playlist['name'], description=f"Creator: {creator.name}",
-                              color=discord.Color.dark_red())
+        embed = create_basic_embed(playlist['name'], f"Creator: {creator.name}")
         embed.add_field(name="Privacy", value="Public" if playlist['privacy'] == 1 else "Private")
         if playlist['privacy'] == 1:  # Public playlist
             contents = await db.get_playlist_contents(playlist['playlist_id'])
@@ -410,6 +428,7 @@ async def create_playlist_selection_embeds(playlists, bot):
         embeds.append(embed)
 
     return embeds, view
+
 
 # Create invite view embeds and view
 async def create_invite_view_embeds(invites, bot):
@@ -421,17 +440,17 @@ async def create_invite_view_embeds(invites, bot):
             continue
 
         invite_ids.add(invite['invite_id'])
-        embed = discord.Embed(title=invite['name'], description=f"Invited by: <@{invite['user_id']}>",
-                              color=discord.Color.dark_red())
+        embed = create_basic_embed(invite['name'], f"Invited by: <@{invite['user_id']}>")
         embed.set_footer(text=f"Invite ID: {invite['invite_id']}")
         embeds.append(embed)
 
     view = Paginator(embeds, invites, bot)
     return embeds, view
 
+
 # Create edit interface for a playlist
 async def create_edit_interface(interaction: discord.Interaction, playlist):
-    embed = discord.Embed(title=f"Edit Playlist: {playlist['name']}", color=discord.Color.dark_red())
+    embed = create_basic_embed(f"Edit Playlist: {playlist['name']}", "")  # Add an empty description
     embed.add_field(name="Current Privacy", value="Public" if playlist['privacy'] == 1 else "Private")
 
     view = discord.ui.View()
@@ -445,24 +464,23 @@ async def create_edit_interface(interaction: discord.Interaction, playlist):
         selected_privacy = int(interaction.data['values'][0])
         await db.update_playlist_privacy(playlist['playlist_id'], selected_privacy)
         await interaction.response.send_message(
-            f"Playlist privacy updated to {'Public' if selected_privacy == 1 else 'Private'} 🎶", ephemeral=True)
+            embed=create_basic_embed("", f"Playlist privacy updated to {'Public' if selected_privacy == 1 else 'Private'} 🎶"),
+            ephemeral=True
+        )
 
-    privacy_select = discord.ui.Select(placeholder='Change Privacy', options=privacy_options,
-                                       custom_id="privacy_select")
+    privacy_select = discord.ui.Select(placeholder='Change Privacy', options=privacy_options, custom_id="privacy_select")
     privacy_select.callback = privacy_callback
     view.add_item(privacy_select)
 
     async def delete_collaborator_callback(interaction: discord.Interaction):
         collaborators = await db.get_playlist_collaborators(playlist['playlist_id'])
         if not collaborators:
-            await interaction.followup.send("No collaborators to delete. 🎶", ephemeral=True)
+            await interaction.followup.send(embed=create_error_embed("No collaborators to delete. 🎶"), ephemeral=True)
             return
-        embed, view = await create_collaborator_delete_interface(playlist['playlist_id'], collaborators,
-                                                                 interaction.client)
+        embed, view = await create_collaborator_delete_interface(playlist['playlist_id'], collaborators, interaction.client)
         await interaction.response.edit_message(embed=embed, view=view)
 
-    delete_collaborator_button = discord.ui.Button(label="Delete Collaborator", style=discord.ButtonStyle.danger,
-                                                   custom_id="delete_collaborator_button")
+    delete_collaborator_button = discord.ui.Button(label="Delete Collaborator", style=discord.ButtonStyle.danger, custom_id="delete_collaborator_button")
     delete_collaborator_button.callback = delete_collaborator_callback
     view.add_item(delete_collaborator_button)
 
@@ -470,17 +488,16 @@ async def create_edit_interface(interaction: discord.Interaction, playlist):
         modal = EditPlaylistNameModal(playlist['playlist_id'], playlist['name'])
         await interaction.response.send_modal(modal)
 
-    edit_name_button = discord.ui.Button(label="Edit Name", style=discord.ButtonStyle.secondary,
-                                         custom_id="edit_name_button")
+    edit_name_button = discord.ui.Button(label="Edit Name", style=discord.ButtonStyle.secondary, custom_id="edit_name_button")
     edit_name_button.callback = edit_name_callback
     view.add_item(edit_name_button)
 
     return embed, view
 
+
 # Create collaborator delete interface
 async def create_collaborator_delete_interface(playlist_id, collaborators, client):
-    embed = discord.Embed(title="Delete Collaborator", description="Select a collaborator to delete",
-                          color=discord.Color.dark_red())
+    embed = create_basic_embed("Delete Collaborator", "Select a collaborator to delete")
 
     options = []
     for collaborator_id in collaborators:
@@ -492,7 +509,7 @@ async def create_collaborator_delete_interface(playlist_id, collaborators, clien
             continue
 
     if not options:
-        embed.description = "No collaborators to delete."
+        embed = create_error_embed("No collaborators to delete.")
         view = discord.ui.View()
         return embed, view
 
@@ -502,12 +519,14 @@ async def create_collaborator_delete_interface(playlist_id, collaborators, clien
     async def select_callback(interaction: discord.Interaction):
         selected_user_id = int(select.values[0])
         await db.remove_collaborator_from_playlist(playlist_id, selected_user_id)
-        await interaction.followup.send(f"Collaborator {selected_user_id} has been removed. 🎶", ephemeral=True)
+        await interaction.followup.send(
+            embed=create_basic_embed("", f"Collaborator {selected_user_id} has been removed. 🎶"), ephemeral=True)
 
     select.callback = select_callback
     view = discord.ui.View()
     view.add_item(select)
     return embed, view
+
 
 # Modal for editing playlist name
 class EditPlaylistNameModal(discord.ui.Modal, title="Edit Playlist Name"):
@@ -521,4 +540,5 @@ class EditPlaylistNameModal(discord.ui.Modal, title="Edit Playlist Name"):
     async def on_submit(self, interaction: discord.Interaction):
         new_name = self.children[0].value
         await db.edit_playlist_name(self.playlist_id, new_name)
-        await interaction.response.send_message(f"Playlist name updated to '{new_name}'. 🎶", ephemeral=True)
+        await interaction.response.send_message(
+            embed=create_basic_embed("", f"Playlist name updated to '{new_name}'. 🎶"), ephemeral=True)
