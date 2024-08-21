@@ -80,12 +80,14 @@ class MusicService(commands.Cog):
                     return
                 except discord.HTTPException as e:
                     logger.error(f"Failed to connect to the voice channel: {e}")
-                    embed = create_error_embed("An unexpected error occurred when trying to join your voice channel. Please check my permissions, I may not be allowed to join you in your current channel.")
+                    embed = create_error_embed(
+                        "An unexpected error occurred when trying to join your voice channel. Please check my permissions, I may not be allowed to join you in your current channel.")
                     await interaction.followup.send(embed=embed, ephemeral=True)
                     return
                 except Exception as e:
                     logger.error(f"Unexpected error when trying to join the voice channel: {e}")
-                    embed = create_error_embed("An unexpected error occurred when trying to join your voice channel. Please check my permissions, I may not be allowed to join you in your current channel.")
+                    embed = create_error_embed(
+                        "An unexpected error occurred when trying to join your voice channel. Please check my permissions, I may not be allowed to join you in your current channel.")
                     await interaction.followup.send(embed=embed, ephemeral=True)
                     return
             else:
@@ -95,7 +97,14 @@ class MusicService(commands.Cog):
                     return
 
             # After joining the voice channel, proceed with other checks
-            if not await has_voted(interaction.user, interaction.guild, self.bot, interaction):
+            if not await has_voted_sources(interaction.user, interaction.guild, self.bot, interaction):
+                # Check for inactivity if the user hasn't voted
+                await asyncio.sleep(5)  # Short delay before checking inactivity
+                if not player.playing:  # Check if still idle
+                    text_channel = self.bot.get_channel(player.interaction_channel_id)
+                    if text_channel:
+                        await self.send_inactivity_message(text_channel)
+                    await self.disconnect_and_cleanup(player)
                 return
 
             # Proceed to play the song
