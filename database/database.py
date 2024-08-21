@@ -611,6 +611,16 @@ async def add_collaborator_to_playlist(playlist_id, user_id):
                     await conn.commit()
 
 
+# Get playlists where the user is a collaborator
+async def get_collaborator_playlists(user_id: int):
+    async with aiomysql.connect(**MYSQL_CONFIG) as conn:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            # Find playlists where the user is listed as a collaborator
+            await cur.execute("SELECT * FROM playlists WHERE FIND_IN_SET(%s, collaborators)", (user_id,))
+            playlists = await cur.fetchall()
+            return playlists
+
+
 # Update playlist privacy
 async def update_playlist_privacy(playlist_id, privacy):
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:

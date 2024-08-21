@@ -157,6 +157,47 @@ class PlaylistService:
             for playlist in playlists if current.lower() in playlist['name'].lower()
         ]
 
+    async def play_playlist_autocomplete(self, interaction: discord.Interaction, current: str):
+        guild_id = interaction.guild_id
+        user_id = interaction.user.id
+
+        try:
+            # Fetch public playlists for the current guild
+            guild_playlists = await db.get_guild_playlists(guild_id)
+
+            # Filter for public playlists
+            public_playlists = [playlist for playlist in guild_playlists if playlist['privacy'] == 1]
+
+            # Fetch playlists the user owns
+            user_playlists = await db.get_user_playlists(user_id)
+
+            # Fetch playlists where the user is a collaborator
+            collaborator_playlists = await db.get_collaborator_playlists(user_id)
+
+            # Convert all to lists to avoid concatenation issues
+            public_playlists = list(public_playlists)
+            user_playlists = list(user_playlists)
+            collaborator_playlists = list(collaborator_playlists)
+
+            # Combine public playlists with user-owned and collaborator playlists
+            combined_playlists = public_playlists + user_playlists + collaborator_playlists
+
+            # Use a set to ensure there are no duplicates
+            unique_playlists = {playlist['name']: playlist for playlist in combined_playlists}.values()
+
+            # Further filter by the current input if provided
+            filtered_playlists = [playlist for playlist in unique_playlists if
+                                  current.lower() in playlist['name'].lower()]
+
+            # Return the playlists as choices
+            return [
+                       discord.app_commands.Choice(name=playlist['name'], value=playlist['name'])
+                       for playlist in filtered_playlists
+                   ][:25]  # Discord limits autocomplete results to 25 items
+
+        except Exception:
+            return []
+
     async def create_playlist(self, interaction: discord.Interaction, name: str, privacy: str):
         if not await restriction_check(interaction):
             return
@@ -211,7 +252,7 @@ class PlaylistService:
             await interaction.followup.send(embed=create_error_embed("Sorry, I couldn't find that playlist. 🎶"))
         else:
             await interaction.followup.send(
-                embed=create_basic_embed("", f"Added song '{song_name}' by '{artist}' to playlist '{name}'! 🎉"))
+                embed=create_basic_embed("", f"Added song '{song_name}' by '{artist}' to playlist '{name}'! <a:tadaMM:1258473486003732642>"))
 
     async def remove_song_from_playlist(self, interaction: discord.Interaction, name: str, query: str):
         if not await restriction_check(interaction):
@@ -241,7 +282,7 @@ class PlaylistService:
             await interaction.followup.send(embed=create_error_embed("Sorry, I couldn't find that playlist. 🎶"))
         else:
             await interaction.followup.send(embed=create_basic_embed("",
-                                                                     f"Removed song '{track.title}' by '{track.author}' from playlist '{name}'! 🎉"))
+                                                                     f"Removed song '{track.title}' by '{track.author}' from playlist '{name}'! <a:tadaMM:1258473486003732642>"))
 
     async def dedupe_playlist(self, interaction: discord.Interaction, name: str):
         if not await restriction_check(interaction):
@@ -262,7 +303,7 @@ class PlaylistService:
             await interaction.followup.send(embed=create_error_embed("Sorry, I couldn't find that playlist. 🎶"))
         else:
             await interaction.followup.send(
-                embed=create_basic_embed("", f"Yay! Removed duplicate songs from playlist '{name}'. 🎉"))
+                embed=create_basic_embed("", f"Yay! Removed duplicate songs from playlist '{name}'. <a:tadaMM:1258473486003732642>"))
 
     async def view_playlist(self, interaction: discord.Interaction, name: str):
         if not await restriction_check(interaction):
@@ -467,10 +508,9 @@ class PlaylistService:
 
             await self.play_songs(interaction, contents, player)
 
-            embed = create_basic_embed("Playing Playlist 🎶",
-                                       f"Playing all songs from playlist '{selected_playlist['name']}'! 🎉"
+            embed = create_basic_embed("",
+                                       f"Playing all songs from playlist '{selected_playlist['name']}'! <a:tadaMM:1258473486003732642>"
                                        )
-            embed.set_thumbnail(url=self.bot.user.display_avatar.url)
             embed.set_footer(text="Enjoy your music!", icon_url=interaction.user.display_avatar.url)
 
             await interaction.followup.send(embed=embed)

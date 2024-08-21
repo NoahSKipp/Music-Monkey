@@ -123,6 +123,7 @@ class Playlist(commands.GroupCog, group_name="playlist"):
     @discord.app_commands.checks.cooldown(1, 3)  # 1 use every 3 seconds
     @app_commands.command(name="play", description="Play all songs from a playlist")
     @app_commands.describe(name="Name of the playlist")
+    @app_commands.autocomplete(name=PlaylistService.play_playlist_autocomplete)
     async def play(self, interaction: discord.Interaction, name: str):
         await interaction.response.defer(ephemeral=True)
         await self.service.play_playlist(interaction, name)

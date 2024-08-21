@@ -68,10 +68,26 @@ class MusicService(commands.Cog):
                 return
 
             if not player:
-                # Join the user's voice channel immediately
-                player = await channel.connect(cls=wavelink.Player)
-                player.guild_id = interaction.guild_id
-                player.interaction_channel_id = interaction.channel_id
+                try:
+                    # Join the user's voice channel immediately
+                    player = await channel.connect(cls=wavelink.Player)
+                    player.guild_id = interaction.guild_id
+                    player.interaction_channel_id = interaction.channel_id
+                except discord.Forbidden:
+                    embed = create_error_embed(
+                        "I don't have permission to join your voice channel. Please check my permissions.")
+                    await interaction.followup.send(embed=embed, ephemeral=True)
+                    return
+                except discord.HTTPException as e:
+                    logger.error(f"Failed to connect to the voice channel: {e}")
+                    embed = create_error_embed("An unexpected error occurred when trying to join your voice channel. Please check my permissions, I may not be allowed to join you in your current channel.")
+                    await interaction.followup.send(embed=embed, ephemeral=True)
+                    return
+                except Exception as e:
+                    logger.error(f"Unexpected error when trying to join the voice channel: {e}")
+                    embed = create_error_embed("An unexpected error occurred when trying to join your voice channel. Please check my permissions, I may not be allowed to join you in your current channel.")
+                    await interaction.followup.send(embed=embed, ephemeral=True)
+                    return
             else:
                 if not await self.user_in_voice(interaction):
                     embed = create_error_embed("You must be in the same voice channel as the bot to use this command.")
