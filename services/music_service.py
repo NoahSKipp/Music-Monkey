@@ -103,6 +103,9 @@ class MusicService(commands.Cog):
                 elif source == 'Deezer':
                     search_query = query
                     source_prefix = 'dzsearch'
+                elif source == 'None':
+                    search_query = query
+                    source_prefix = ''
                 else:  # Default to Deezer
                     search_query = query
                     source_prefix = 'dzsearch'
@@ -754,7 +757,7 @@ class MusicService(commands.Cog):
                         ).set_footer(text="Messages aren't monitored or filtered. View at your own discretion.")
                         await interaction.followup.send(embed=embed)
 
-                    await self.play_song(interaction, uri)
+                    await self.play_song(interaction, uri, source=None)
                     await db.delete_wonder_trade(uri)
 
                 else:
