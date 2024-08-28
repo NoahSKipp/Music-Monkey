@@ -47,7 +47,7 @@ class FirstJoinService:
         return next((chan for chan in guild.text_channels if chan.permissions_for(guild.me).send_messages), None)
 
     def create_help_menu(self):
-        view = ui.View(timeout=None)
+        view = ui.View(timeout=180)
         select = ui.Select(
             placeholder='🔍 Choose a category to get help with...',
             options=[
