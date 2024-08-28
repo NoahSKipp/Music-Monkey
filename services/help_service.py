@@ -5,21 +5,21 @@
 # ========================================= #
 
 import discord
-from discord import app_commands, ui, ButtonStyle
-from discord.ext import commands
+from discord import ui, ButtonStyle
+from utils.embeds import create_basic_embed
 
-class HelpCog(commands.Cog):
+
+class HelpService:
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name='help', description='See all commands')
-    async def help_command(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
-        embed = self.about_me_embed()
-        await interaction.followup.send(embed=embed, view=self.create_help_menu(), ephemeral=True)
+    async def send_help_message(self, interaction: discord.Interaction):
+        embed = self.create_about_me_embed()
+        view = self.create_help_menu()
+        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
-    def about_me_embed(self):
-        embed = discord.Embed(
+    def create_about_me_embed(self):
+        embed = create_basic_embed(
             title="🐵 Meet Music Monkey! 🐵",
             description=(
                 "Hello! I'm **Music Monkey**, your friendly music companion on Discord! "
@@ -31,10 +31,8 @@ class HelpCog(commands.Cog):
                 "• 🏆 View server-wide music leaderboards.\n"
                 "• 📈 Personalized music profiles to track your listening habits.\n"
                 "• ✨ Spread the joy of music with our **wondertrade**!"
-            ),
-            color=discord.Color.blue()
+            )
         )
-
         return embed
 
     def create_help_menu(self):
@@ -42,23 +40,16 @@ class HelpCog(commands.Cog):
         select = ui.Select(
             placeholder='🔍 Choose a category to get help with...',
             options=[
-                discord.SelectOption(label='Playback Commands',
-                                     description='Control the music playback', emoji='▶️'),
+                discord.SelectOption(label='Playback Commands', description='Control the music playback', emoji='▶️'),
                 discord.SelectOption(label='Queue Management', description='Manage your music queue', emoji='📋'),
-                discord.SelectOption(label='Playlist Management',
-                                     description='Manage your playlists', emoji='🎵'),
-                discord.SelectOption(label='Settings and Configuration',
-                                     description='Customize bot settings', emoji='⚙️'),
-                discord.SelectOption(label='Community and Profiles',
-                                     description='Engage with your community',
+                discord.SelectOption(label='Playlist Management', description='Manage your playlists', emoji='🎵'),
+                discord.SelectOption(label='Settings and Configuration', description='Customize bot settings',
+                                     emoji='⚙️'),
+                discord.SelectOption(label='Community and Profiles', description='Engage with your community',
                                      emoji='👥'),
-                discord.SelectOption(label='Music Recommendations', description='Get music recommendations',
-                                     emoji='🎶'),
-                discord.SelectOption(label='Fun',
-                                     description='Fun commands to use',
-                                     emoji='🎉'),
-                discord.SelectOption(label='Support',
-                                     description='Access immediate help and support resources',
+                discord.SelectOption(label='Music Recommendations', description='Get music recommendations', emoji='🎶'),
+                discord.SelectOption(label='Fun', description='Fun commands to use', emoji='🎉'),
+                discord.SelectOption(label='Support', description='Access immediate help and support resources',
                                      emoji='🤝')
             ]
         )
@@ -70,7 +61,7 @@ class HelpCog(commands.Cog):
         return view
 
     async def select_callback(self, interaction: discord.Interaction):
-        label = interaction.data['values'][0]  # Get the label of the selected option
+        label = interaction.data['values'][0]
         description_map = {
             'Playback Commands': self.get_playback_commands(),
             'Queue Management': self.get_queue_management_commands(),
@@ -82,7 +73,6 @@ class HelpCog(commands.Cog):
             'Fun': self.get_fun_commands()
         }
 
-        # Ensure to defer the interaction if not already responded to
         if not interaction.response.is_done():
             await interaction.response.defer(ephemeral=True)
 
@@ -93,7 +83,7 @@ class HelpCog(commands.Cog):
 
     def get_playback_commands(self):
         return ("**Playback Commands:**\n"
-                "`/play [song|URL]` - Play or add a song to the queue.\n"
+                "`/play [song|URL] [source]` - Play or add a song to the queue.\n"
                 "`/pause` - Pause the current song.\n"
                 "`/resume` - Resume the paused music.\n"
                 "`/skip` - Skip the current track.\n"
@@ -130,8 +120,11 @@ class HelpCog(commands.Cog):
 
     def get_settings_commands(self):
         return ("**Settings and Configuration Commands:**\n"
-                "`/dj` - Toggle DJ-only command restrictions.\n"
-                "`/setdj` - Set a DJ role for managing the bot.\n"
+                "`/botinfo` - Displays the bot configuration details.\n"
+                "`/dj add [command_name]` - Add a command to the DJ list.\n"
+                "`/dj remove [command_name]` - Remove a command from the DJ restricted list.\n"
+                "`/dj toggle` - Toggle DJ-only command restrictions.\n"
+                "`/dj set` - Set a DJ role for managing the bot.\n"
                 "`/updates toggle [enable | disable]` - Toggle receiving bot announcements on or off.\n"
                 "`/updates set` - Set the current channel to receive bot announcements.")
 
@@ -148,7 +141,7 @@ class HelpCog(commands.Cog):
 
     def get_support_info(self):
         return ("**Support:**\n"
-                "Need help? Visit our **[Support Server](https://discord.gg/kyamXgVU68)** for more detailed support "
+                "Need help? Visit our **[Support Server](https://discord.gg/6WqKtrXjhn)** for more detailed support "
                 "from the developer and the community.")
 
     def get_fun_commands(self):
@@ -165,7 +158,3 @@ class HelpCog(commands.Cog):
 
     def create_website_button(self):
         return ui.Button(label="Website", url="https://getmusicmonkey.com", style=ButtonStyle.link)
-
-
-async def setup(bot):
-    await bot.add_cog(HelpCog(bot))

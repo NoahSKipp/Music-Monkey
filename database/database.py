@@ -7,6 +7,7 @@
 import aiomysql
 import os
 from dotenv import load_dotenv
+import json
 
 # Load environment variables from the .env file
 load_dotenv()
@@ -31,6 +32,7 @@ async def setup_database():
                 guild_id BIGINT NOT NULL,
                 dj_only_enabled BOOLEAN DEFAULT 0,
                 dj_role_id BIGINT,
+                restricted_commands TEXT DEFAULT NULL,
                 updates_enabled TINYINT DEFAULT 1,
                 updates_channel_id BIGINT,
                 PRIMARY KEY (guild_id)
@@ -82,7 +84,7 @@ async def setup_database():
                 song_id VARCHAR(255) NOT NULL,
                 song_name VARCHAR(255) NOT NULL,
                 artist VARCHAR(255) NOT NULL,
-                uri VARCHAR(255) NOT NULL,
+                raw_data JSON NOT NULL,
                 FOREIGN KEY (playlist_id) REFERENCES playlists(playlist_id)
             );
             CREATE TABLE IF NOT EXISTS playlist_invites (
@@ -95,16 +97,16 @@ async def setup_database():
             await conn.commit()
 
 
-# Returns the dj_only_enabled attribute of a given guild.
 async def get_dj_only_enabled(guild_id):
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
         async with conn.cursor() as cur:
-            await cur.execute('SELECT dj_only_enabled FROM guilds WHERE guild_id = %s', guild_id)
+            await cur.execute('SELECT dj_only_enabled FROM guilds WHERE guild_id = %s', (guild_id,))
             result = await cur.fetchone()
+            if result is None:
+                return False
             return bool(result[0])
 
 
-# Sets the dj_only_enabled attribute of a given guild.
 async def set_dj_only_enabled(guild_id, dj_only):
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
         async with conn.cursor() as cur:
@@ -112,7 +114,6 @@ async def set_dj_only_enabled(guild_id, dj_only):
             await conn.commit()
 
 
-# Gets the DJ role of a given guild.
 async def get_dj_role(guild_id):
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
         async with conn.cursor() as cur:
@@ -121,12 +122,61 @@ async def get_dj_role(guild_id):
             return result[0] if result else None
 
 
-# Sets the given role as the DJ role of a given guild.
 async def set_dj_role(guild_id, role_id):
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
         async with conn.cursor() as cur:
             await cur.execute('UPDATE guilds SET dj_role_id = %s WHERE guild_id = %s', (role_id, guild_id))
             await conn.commit()
+
+
+async def get_restricted_commands(guild_id: int):
+    async with aiomysql.connect(**MYSQL_CONFIG) as conn:
+        async with conn.cursor() as cur:
+            await cur.execute('SELECT restricted_commands FROM guilds WHERE guild_id=%s', (guild_id,))
+            result = await cur.fetchone()
+            if result:
+                return result[0]  # Assuming the field contains a list or string of commands
+            return None
+
+
+async def add_restricted_command(guild_id: int, command: str):
+    async with aiomysql.connect(**MYSQL_CONFIG) as conn:
+        async with conn.cursor() as cur:
+            await cur.execute('SELECT restricted_commands FROM guilds WHERE guild_id=%s', (guild_id,))
+            result = await cur.fetchone()
+            if result:
+                commands = result[0]
+                if commands:
+                    commands = commands.split(',')
+                    if command not in commands:
+                        commands.append(command)
+                        commands = ','.join(commands)
+                    else:
+                        return  # Command is already restricted
+                else:
+                    commands = command
+                await cur.execute('UPDATE guilds SET restricted_commands=%s WHERE guild_id=%s', (commands, guild_id))
+            else:
+                await cur.execute('INSERT INTO guilds (guild_id, restricted_commands) VALUES (%s, %s)',
+                                  (guild_id, command))
+            await conn.commit()
+
+
+async def remove_restricted_command(guild_id: int, command: str):
+    async with aiomysql.connect(**MYSQL_CONFIG) as conn:
+        async with conn.cursor() as cur:
+            await cur.execute('SELECT restricted_commands FROM guilds WHERE guild_id=%s', (guild_id,))
+            result = await cur.fetchone()
+            if result:
+                commands = result[0]
+                if commands:
+                    commands = commands.split(',')
+                    if command in commands:
+                        commands.remove(command)
+                        commands = ','.join(commands) if commands else None
+                        await cur.execute('UPDATE guilds SET restricted_commands=%s WHERE guild_id=%s',
+                                          (commands, guild_id))
+                        await conn.commit()
 
 
 # Checks if a given guild_id is in the guilds table.
@@ -222,16 +272,24 @@ async def delete_wonder_trade(uri):
 async def increment_plays(user_id, song_id, guild_id):
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
         async with conn.cursor() as cur:
-            await cur.execute('SELECT count FROM plays WHERE user_id = %s AND song_id = %s and guild_id = %s',
+            # Ensure the guild exists
+            await enter_guild(guild_id)
+
+            # Ensure the user exists
+            await enter_user(user_id, guild_id)
+
+            # Check if the play record exists
+            await cur.execute('SELECT count FROM plays WHERE user_id = %s AND song_id = %s AND guild_id = %s',
                               (user_id, song_id, guild_id))
             result = await cur.fetchone()
             if result:
                 new_count = result[0] + 1
-                await cur.execute('UPDATE plays SET count = %s WHERE user_id = %s AND song_id = %s and guild_id = %s',
+                await cur.execute('UPDATE plays SET count = %s WHERE user_id = %s AND song_id = %s AND guild_id = %s',
                                   (new_count, user_id, song_id, guild_id))
             else:
                 await cur.execute('INSERT INTO plays (user_id, song_id, guild_id, count) VALUES (%s, %s, %s, 1)',
                                   (user_id, song_id, guild_id))
+
             await conn.commit()
 
 
@@ -358,19 +416,29 @@ async def get_playlist_by_name(name):
 
 
 # Add a song to a playlist
-async def add_song_to_playlist(user_id, name, song_id, song_name, artist, uri):
+async def add_song_to_playlist(user_id, name, song_id, song_name, artist, raw_data):
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
         async with conn.cursor() as cur:
+            # Fetch the playlist ID based on the playlist name and user ID
             await cur.execute(
                 'SELECT playlist_id, collaborators FROM playlists WHERE name = %s AND (user_id = %s OR FIND_IN_SET(%s, collaborators))',
-                (name, user_id, user_id))
+                (name, user_id, user_id)
+            )
             playlist = await cur.fetchone()
+
             if not playlist:
                 return 'Playlist not found'
-            playlist_id = playlist[0]
+
+            playlist_id = playlist[0]  # Ensure playlist_id is correctly obtained
+
+            # Serialize raw_data to JSON string
+            raw_data_json = json.dumps(raw_data)
+
+            # Insert the song into the playlist
             await cur.execute(
-                'INSERT INTO playlist_songs (playlist_id, song_id, song_name, artist, uri) VALUES (%s, %s, %s, %s, %s)',
-                (playlist_id, song_id, song_name, artist, uri))
+                'INSERT INTO playlist_songs (playlist_id, song_id, song_name, artist, raw_data) VALUES (%s, %s, %s, %s, %s)',
+                (playlist_id, song_id, song_name, artist, raw_data_json)
+            )
             await conn.commit()
 
 
@@ -406,22 +474,28 @@ async def dedupe_playlist(user_id, name):
                 (playlist_id,))
             await conn.commit()
 
-
-# View playlists by name
-async def view_playlist(name):
+# View playlist by name
+async def view_playlist(name: str):
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
         async with conn.cursor(aiomysql.DictCursor) as cur:
+            # Fetch playlists with the given name
             await cur.execute(
-                'SELECT playlists.playlist_id, playlists.name, playlists.user_id, playlists.collaborators, playlists.privacy, users.user_id, users.guild_id FROM playlists JOIN users ON playlists.user_id = users.user_id WHERE playlists.name = %s',
-                (name,))
-            return await cur.fetchall()
+                'SELECT playlist_id, name, user_id, privacy FROM playlists WHERE name = %s',
+                (name,)
+            )
+            playlists = await cur.fetchall()
+
+            if not playlists:
+                return None
+
+            return playlists
 
 
 # Get playlist contents by playlist ID
 async def get_playlist_contents(playlist_id):
     async with aiomysql.connect(**MYSQL_CONFIG) as conn:
         async with conn.cursor(aiomysql.DictCursor) as cur:
-            await cur.execute('SELECT song_id, song_name, artist, uri FROM playlist_songs WHERE playlist_id = %s',
+            await cur.execute('SELECT song_id, song_name, artist, raw_data FROM playlist_songs WHERE playlist_id = %s',
                               (playlist_id,))
             return await cur.fetchall()
 
@@ -535,6 +609,16 @@ async def add_collaborator_to_playlist(playlist_id, user_id):
                     await cur.execute('DELETE FROM playlist_invites WHERE playlist_id = %s AND invitee_id = %s',
                                       (playlist_id, user_id))
                     await conn.commit()
+
+
+# Get playlists where the user is a collaborator
+async def get_collaborator_playlists(user_id: int):
+    async with aiomysql.connect(**MYSQL_CONFIG) as conn:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            # Find playlists where the user is listed as a collaborator
+            await cur.execute("SELECT * FROM playlists WHERE FIND_IN_SET(%s, collaborators)", (user_id,))
+            playlists = await cur.fetchall()
+            return playlists
 
 
 # Update playlist privacy
@@ -674,4 +758,3 @@ async def get_guild_playlists(guild_id: int):
             await cur.execute("SELECT * FROM playlists WHERE guild_id = %s", (guild_id,))
             playlists = await cur.fetchall()
             return playlists
-
