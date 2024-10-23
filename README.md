@@ -4,7 +4,6 @@
 [![Website](https://img.shields.io/badge/Website-getmusicmonkey.com-blue?style=flat-square&logo=internet-explorer)](https://getmusicmonkey.com)
 [![Discord](https://img.shields.io/discord/136026412669861888?color=7289DA&label=Discord&logo=discord)](https://discord.gg/kyamXgVU68)
 [![Invite Music Monkey](https://img.shields.io/badge/Invite-Music%20Monkey-blue.svg?style=flat-square)](https://discord.com/oauth2/authorize?client_id=1228071177239531620)
-[![Latest Release](https://img.shields.io/github/v/release/NoahSKipp/music-monkey?label=Latest%20Release&logo=github)](https://github.com/NoahSKipp/music-monkey/releases/latest)
 [![CodeFactor](https://www.codefactor.io/repository/github/noahskipp/music-monkey/badge?s=7d0d36f3ae02ebc4c5139dce9dc932bc42f5bcdb)](https://www.codefactor.io/repository/github/noahskipp/music-monkey)
 
 
@@ -82,7 +81,7 @@ To set up and host Music Monkey yourself, follow these steps:
      MYSQL_PASSWORD='your_database_password'
      ```
    
-   - If you want to use more/less than two Lavalink nodes, add them to the `.env` file accordingly.
+   - If you want to use more/fewer than two Lavalink nodes, add them to the `.env` file accordingly.
   
    - If you're adding/removing nodes, modify the node pool in `main.py` accordingly.
 
@@ -117,9 +116,27 @@ Music Monkey comes with a variety of commands to control music playback, manage 
 - `/cleargone` - Clear all songs from the queue that were requested by users who have since left the voice channel.
 - `/autoplay [mode]` - Toggle AutoPlay mode to automatically continue playing songs when the queue is empty.
 
+### Playlist Management Commands
+- `/playlist create [name] [privacy]` - Create a new playlist with the specified name and privacy setting.
+- `/playlist add [name] [query]` - Add a song to the specified playlist.
+- `/playlist play [name]` - Play all songs from the specified playlist.
+- `/playlist view [name]` - View the contents of the specified playlist.
+- `/playlist guildview` - View all playlists created in the current server.
+- `/playlist remove [name] [query]` - Remove a song from the specified playlist.
+- `/playlist dedupe [name]` - Remove duplicate songs from the specified playlist.
+- `/playlist edit [name]` - Edit the settings of the specified playlist.
+- `/playlist delete [name]` - Delete the specified playlist.
+- `/playlist invite [name] [user]` - Invite a user to collaborate on the specified playlist.
+- `/playlist invites` - View your playlist invites.
+
 ### Settings and Configuration Commands
-- `/dj` - Toggle DJ-only command restrictions.
-- `/setdj [role]` - Set a DJ role for managing the bot.
+- `/botinfo` - Displays the bot configuration details.
+- `/dj add [command]` - Add a command to the DJ list.
+- `/dj remove [command]` - Remove a command from the DJ restricted list.
+- `/dj toggle` - Toggle DJ-only command restrictions.
+- `/dj set` - Set a DJ role for managing the bot.
+- `/updates toggle [enable | disable]` - Toggle receiving bot announcements on or off.
+- `/updates set` - Set the current channel to receive bot announcements.
 
 ### Music Recommendations
 - `/recommend` - Get music recommendations based on your listening history, powered by AI.
@@ -129,6 +146,10 @@ Music Monkey comes with a variety of commands to control music playback, manage 
 ### Community and User Profiles
 - `/leaderboard` - Show the music leaderboard for this server.
 - `/profile [user]` - Display your own, or another user's, personal music profile.
+
+### Misc
+- `/monkey` - Get a random picture of a monkey.
+- `/fact`- Get a random fact about monkeys.
 
 ## Support and Suggestions
 
