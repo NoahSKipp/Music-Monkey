@@ -84,6 +84,8 @@ To set up and host Music Monkey yourself, follow these steps:
    - If you want to use more/fewer than two Lavalink nodes, add them to the `.env` file accordingly.
   
    - If you're adding/removing nodes, modify the node pool in `main.py` accordingly.
+  
+   - Some functionalities require your discord ID to work. You may update them in the `main.py`file.
 
 5. **Run the Bot:**
 
