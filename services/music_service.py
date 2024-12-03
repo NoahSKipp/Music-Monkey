@@ -24,13 +24,14 @@ class MusicService(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    async def youtube_autocomplete(self, interaction: discord.Interaction, current: str):
+    async def music_autocomplete(self, interaction: discord.Interaction, current: str):
         try:
             if not current:
                 return []
 
-            # Use Lavalink/Wavelink to search YouTube
-            search_results: wavelink.Search = await wavelink.Playable.search(f"{current}")
+            # Use Lavalink/Wavelink to search Deezer
+            ## Implement different search results for different source selections at a later point
+            search_results: wavelink.Search = await wavelink.Pool.fetch_tracks(f"dzsearch:{current}")
 
             # Return up to 25 results to display
             return [
@@ -67,6 +68,14 @@ class MusicService(commands.Cog):
                 await interaction.followup.send(embed=embed, ephemeral=True)
                 return
 
+            # Check if the source is YouTube or if the query is a YouTube URL
+            #if source.lower() == "youtube" or "youtube.com" in query or "youtu.be" in query:
+                #embed = create_error_embed(
+                    #"Hey there! 😊 Just a heads-up: YouTube is temporarily unavailable right now. No worries though—we’ve got plenty of other awesome options! Try searching with Deezer, SoundCloud, or another source. 🎶 Thanks for understanding!")
+                #await interaction.followup.send(embed=embed, ephemeral=True)
+                #return
+
+            # Only connect to the voice channel if the bot is not already in one and source is not YouTube
             if not player:
                 try:
                     # Join the user's voice channel immediately
@@ -96,7 +105,21 @@ class MusicService(commands.Cog):
                     await interaction.followup.send(embed=embed, ephemeral=True)
                     return
 
-            # After joining the voice channel, proceed with other checks
+            # Check if the source is Deezer
+            if source == "Deezer":
+                # Check if the query is a Deezer URL
+                if query.startswith("https://deezer") or query.startswith("http://deezer"):
+                    # Proceed to play the song without checking for votes
+                    await self.play_song(interaction, query, source)
+                    return
+                else:
+                    # Normal non-URL query; check if it does not start with http or https
+                    if not (query.startswith("http://") or query.startswith("https://")):
+                        # Skip voting check and play the song
+                        await self.play_song(interaction, query, source)
+                        return
+
+            # For other sources, always check for voting
             if not await has_voted_sources(interaction.user, interaction.guild, self.bot, interaction):
                 # Check for inactivity if the user hasn't voted
                 await asyncio.sleep(5)  # Short delay before checking inactivity
@@ -121,23 +144,21 @@ class MusicService(commands.Cog):
             if query.startswith("https://") or query.startswith("http://"):
                 search_query = query
             else:
-                # Apply the appropriate search prefix based on the source
-                if source == 'Spotify':
-                    search_query = query
-                    source_prefix = 'spsearch'
-                elif source == 'Deezer':
-                    search_query = query
-                    source_prefix = 'dzsearch'
-                elif source == 'None':
-                    search_query = query
-                    source_prefix = ''
-                else:  # Default to Deezer
-                    search_query = query
-                    source_prefix = 'dzsearch'
+                # Special handling for SoundCloud
+                if source == 'Soundcloud':
+                    search_query = f'wavelink.TrackSource:{query}'
+                else:
+                    # Apply the appropriate search prefix for other sources, including YouTube
+                    source_mapping = {
+                        'Spotify': 'spsearch',
+                        'Deezer': 'dzsearch',
+                        'YouTube': 'ytmsearch',
+                        'None': ''  # No prefix
+                    }
+                    # Get the source prefix; default to Deezer
+                    source_prefix = source_mapping.get(source, 'dzsearch')
+                    search_query = f'{source_prefix}:{query}' if source_prefix else query
 
-                # If source_prefix is set, apply the search prefix
-                if source_prefix:
-                    search_query = f'{source_prefix}:{query}'
 
             # Use fetch_tracks to avoid default source prefix addition
             results: wavelink.Search = await wavelink.Pool.fetch_tracks(search_query)
@@ -197,6 +218,17 @@ class MusicService(commands.Cog):
             await db.enter_song(player.current.identifier, player.current.title, player.current.author,
                                 player.current.length, player.current.uri)
             await db.increment_plays(interaction.user.id, player.current.identifier, interaction.guild_id)
+
+        except discord.errors.NotFound:
+            logger.error("Interaction not found or expired.")
+        except Exception as e:
+            logger.error(f"Error processing the play command: {e}")
+            try:
+                embed = create_error_embed('An error occurred while trying to play the track.')
+                await interaction.followup.send(embed=embed, ephemeral=True)
+            except discord.errors.NotFound:
+                logger.error("Failed to send follow-up message: Interaction not found or expired.")
+
 
         except discord.errors.NotFound:
             logger.error("Interaction not found or expired.")
