@@ -39,13 +39,14 @@ class MusicCog(commands.Cog):
 
     @app_commands.command(name='play', description='Play or queue a song from a URL or search term')
     @app_commands.describe(query='URL or search term of the song to play',
-                           source='The source to search from (YouTube, Spotify, Deezer)')
+                           source='The source to search from')
     @app_commands.choices(source=[
+        app_commands.Choice(name='Deezer', value='Deezer'),
+        app_commands.Choice(name='Soundcloud', value='Soundcloud'),
         app_commands.Choice(name='YouTube', value='YouTube'),
-        app_commands.Choice(name='Spotify', value='Spotify'),
-        app_commands.Choice(name='Deezer', value='Deezer')
+        app_commands.Choice(name='Spotify', value='Spotify')
     ])
-    @app_commands.autocomplete(query=MusicService.youtube_autocomplete)
+    @app_commands.autocomplete(query=MusicService.music_autocomplete)
     async def play(self, interaction: Interaction, query: str, source: str = 'Deezer'):
         await self.service.play(interaction, query, source)
 
