@@ -14,7 +14,7 @@ load_dotenv()
 
 # Define MySQL configuration
 MYSQL_CONFIG = {
-    'host': 'mysql.db.bot-hosting.net',
+    'host': 'us.mysql.db.bot-hosting.net',
     'port': 3306,
     'user': os.getenv('MYSQL_USER'),
     'password': os.getenv('MYSQL_PASSWORD'),
