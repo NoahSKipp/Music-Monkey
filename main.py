@@ -29,6 +29,9 @@ class MusicMonkey(commands.AutoShardedBot):
                           password=config.LAVALINK_PASSWORD),
         ]
         await wavelink.Pool.connect(nodes=nodes, client=self)
+        self.dblclient = topgg.DBLClient(self, config.TOPGG_TOKEN, autopost=True)
+        self.webhook_manager = topgg.WebhookManager(self).dbl_webhook(route="/dblwebhook", auth_key=config.AUTHORIZATION_KEY)
+        self.logger.info(f'WebhookManager initialized correctly!')
 
         # Load necessary extensions
         extensions = [
@@ -51,6 +54,8 @@ class MusicMonkey(commands.AutoShardedBot):
 
     async def on_ready(self):
         await self.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name='/play | /help'))
+        await self.webhook_manager.run(config.PORT)
+        await self.logger.info('Updated Top.gg!')
         self.logger.info(f'Logged in as {self.user} and ready!')
 
     async def on_message(self, message: discord.Message):
