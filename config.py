@@ -41,3 +41,8 @@ BOT_ID = os.getenv('BOT_ID')
 PORT = os.getenv('PORT')
 EXEMPT_GUILD_ID = int(os.getenv('EXEMPT_GUILD_ID'))
 EXEMPT_ROLE_ID = int(os.getenv('EXEMPT_ROLE_ID'))
+
+# Report/Request Variables
+DEV_GUILD_ID=os.getenv('DEV_GUILD_ID')
+DEV_REPORT_CHANNEL_ID=os.getenv('DEV_REPORT_CHANNEL_ID')
+DEV_REQUEST_CHANNEL_ID=os.getenv('DEV_REQUEST_CHANNEL_ID')

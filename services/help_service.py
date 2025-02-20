@@ -142,7 +142,8 @@ class HelpService:
     def get_support_info(self):
         return ("**Support:**\n"
                 "Need help? Visit our **[Support Server](https://discord.gg/6WqKtrXjhn)** for more detailed support "
-                "from the developer and the community.")
+                "from the developer and the community. \n"
+                "Encountered an error? Feel free to report it by using the `/report` command. \n ")
 
     def get_fun_commands(self):
         return ("**Fun Commands:**\n"

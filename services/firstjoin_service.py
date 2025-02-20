@@ -39,8 +39,6 @@ class FirstJoinService:
             except discord.HTTPException as e:
                 self.logger.error(f"Failed to send welcome message in guild {guild.name}: {str(e)}")
 
-        await self.notify_creators(guild)
-
     def get_appropriate_channel(self, guild: discord.Guild):
         if guild.system_channel:
             return guild.system_channel
@@ -95,23 +93,6 @@ class FirstJoinService:
             self.logger.info(f"Help menu option '{label}' selected by {interaction.user} in guild {interaction.guild.name}")
         except discord.NotFound:
             self.logger.error("Failed to send follow-up: interaction token expired or invalid")
-
-    async def notify_creators(self, guild: discord.Guild):
-        for creator_id in self.creator_ids:
-            try:
-                user = await self.bot.fetch_user(int(creator_id))
-                if user:
-                    await user.send(
-                        f"Bot joined a new guild:\n"
-                        f"**Guild Name:** {guild.name}\n"
-                        f"**Guild ID:** {guild.id}\n"
-                        f"**Member Count:** {guild.member_count}"
-                    )
-                    self.logger.info(f"Notified creator {creator_id} about joining guild {guild.name}")
-            except discord.Forbidden:
-                self.logger.warning(f"Cannot send DM to user {creator_id}.")
-            except discord.HTTPException as e:
-                self.logger.error(f"HTTPException occurred while notifying creator {creator_id}: {str(e)}")
 
     def get_playback_commands(self):
         return ("**Playback Commands:**\n"
@@ -174,7 +155,8 @@ class FirstJoinService:
     def get_support_info(self):
         return ("**Support:**\n"
                 "Need help? Visit our **[Support Server](https://discord.gg/6WqKtrXjhn)** for more detailed support "
-                "from the developer and the community.\n\n")
+                "from the developer and the community.\n"
+                "Encountered an error? Feel free to report it by using the `/report` command!\n\n")
 
     def get_fun_commands(self):
         return ("**Fun Commands:**\n"
